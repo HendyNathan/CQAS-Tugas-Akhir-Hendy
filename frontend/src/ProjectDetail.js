@@ -347,6 +347,22 @@ function ProjectDetail() {
     } catch (error) { setMessage(error.response?.data?.detail || t("project.messageUploadFailed")); }
   };
   const analyzeNow = async () => { await api.post(`/projects/${id}/analyze`); load(); setMessage(t("project.messageAnalyzed")); };
+  const downloadReport = async () => {
+    try {
+      const response = await api.get(`/projects/${id}/report`, { params: { lang }, responseType: "blob" });
+      const blob = new Blob([response.data], { type: "application/pdf" });
+      const url = window.URL.createObjectURL(blob);
+      const anchor = window.document.createElement("a");
+      anchor.href = url;
+      anchor.download = `concrete-quality-report-${project?.code || id}.pdf`;
+      window.document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => window.URL.revokeObjectURL(url), 2000);
+    } catch (err) {
+      setMessage(err.response?.data?.detail || t("project.messageUploadFailed"));
+    }
+  };
   if (!project) return <main className="page"><div className="loading">Loading…</div></main>;
   const strength = project.records?.filter((item) => item.test_type === "strength") || [];
   const slump = project.records?.filter((item) => item.test_type === "slump") || [];
@@ -357,7 +373,7 @@ function ProjectDetail() {
     <main className="page">
       <div className="project-hero">
         <div><Link className="back-link" to="/projects" data-testid="project-back-link">{t("project.back")}</Link><span className="eyebrow">{t("project.eyebrow")} / {project.code || t("projects.uncoded")}</span><h1>{project.name}</h1><p className="muted">{project.description || t("project.workspace")} · {project.location || t("projects.locationPending")}</p></div>
-        <div className="hero-actions"><button className="button button-outline" onClick={() => setShowSettings(true)} data-testid="open-settings-button"><SettingsIcon size={17} /> {t("settings.open")}</button><button className="button button-outline" onClick={analyzeNow} data-testid="analyze-project-button"><Activity size={17} /> {t("project.reanalyze")}</button><a className="button button-primary" href={`${API}/projects/${id}/report?lang=${lang}`} target="_blank" rel="noreferrer" data-testid="download-report-button"><FileText size={17} /> {t("project.report")}</a></div>
+        <div className="hero-actions"><button className="button button-outline" onClick={() => setShowSettings(true)} data-testid="open-settings-button"><SettingsIcon size={17} /> {t("settings.open")}</button><button className="button button-outline" onClick={analyzeNow} data-testid="analyze-project-button"><Activity size={17} /> {t("project.reanalyze")}</button><button type="button" className="button button-primary" onClick={downloadReport} data-testid="download-report-button"><FileText size={17} /> {t("project.report")}</button></div>
       </div>
       {message && <div className="success-box" data-testid="project-message">{message}</div>}
       <div className="project-layout">

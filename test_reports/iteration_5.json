@@ -1,0 +1,38 @@
+{
+  "summary": "Focused regression test of the PDF export bug fix (Report button now uses axios blob download with withCredentials) plus the cookie auth flow it depends on. Backend: 11/11 pytest tests passed (login sets httpOnly access_token, /auth/me with & without cookie, report 200+application/pdf for lang=en/id/invalid, 401 'Not authenticated' with no/bad cookie, Bearer token path, unknown project 404). Frontend: logged in via visible form as admin@cqas.local, opened Navapark NBS-DEMO project, clicked data-testid='download-report-button' -> real browser download 'concrete-quality-report-NBS-DEMO.pdf' whose bytes start with %PDF; intercepted /api/projects/{id}/report?lang=en and ?lang=id responses were 200 with Content-Type application/pdf. No 'Not authenticated' text and no error elements on the page. Bug is FIXED. PDF text extraction confirms EN/ID localization of headings, statuses and recommendations.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "/api/projects/{id}/report", "issue": "PDF 'Generated:' date is not localized in ID mode (renders English month, e.g. 'Dibuat: 27 August 2026')"},
+      {"endpoint": "/api/projects/{id}/report", "issue": "Age column renders 'None day' / 'None hari' when age_days is missing (should be '—'), and floats render as '28.0 day' instead of '28 days' (reports.py formatting)"}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {"screen": "Project detail hero actions (ID locale)", "issues": ["'Jalankan ulang analisis' button label wraps to 3 lines, making the three hero buttons visually uneven in height"]}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5_report_export.py",
+    "/app/test_reports/pytest/iteration5.xml"
+  ],
+  "action_items": [
+    "Optional: localize the report generation date for lang=id in /app/backend/reports.py",
+    "Optional: fix age formatting in the PDF ('None day' -> '—', '28.0 day' -> '28 days')",
+    "Cleanup: leftover QA seed data pollutes the demo dataset (8 TEST_CQAS_* projects and TEST-*/UI-* records inside the NBS-DEMO project appear in dashboard and PDF)"
+  ],
+  "critical_code_review_comments": [
+    "downloadReport correctly revokes the object URL and surfaces errors via setMessage; error fallback uses the generic upload-failed translation key which is misleading for report failures - consider a dedicated 'report failed' message",
+    "Report endpoint has no record-count guard; a project with thousands of records builds the whole PDF in memory (to_list(5000)) synchronously in the event loop - consider run_in_threadpool for build_report"
+  ],
+  "updated_files": ["/app/backend/tests/test_iteration5_report_export.py"],
+  "success_rate": {"backend": "100%", "frontend": "100%"},
+  "seed_data_creation": "None created this iteration (used existing seeded admin + NBS-DEMO project)",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "admin@cqas.local / admin123 (from /app/memory/test_credentials.md)",
+  "context_for_next_testing_agent": "PDF export regression verified fixed end-to-end. Reusable pytest suite: /app/backend/tests/test_iteration5_report_export.py. Project cards with data-testid='project-card-*' exist only on /projects; on /dashboard use the 'Recent work' text links. NBS-DEMO project id at time of test: 0981ebed-f920-4983-9012-b8d5705eaae1. access_token cookie is httpOnly, SameSite=None, sent on XHR. Untested this iteration (out of scope): mapping templates, settings, OCR/upload flows.",
+  "rca_of_the_issue": "Original 401 came from a top-level <a target=_blank> navigation to the API URL which browsers no longer reliably attach the SameSite cookie to. The fix (axios GET with withCredentials + responseType blob + createObjectURL download) sends the httpOnly cookie on an XHR; verified via network interception returning 200 application/pdf."
+}
