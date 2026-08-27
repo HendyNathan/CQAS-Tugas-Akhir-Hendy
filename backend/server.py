@@ -27,6 +27,7 @@ from reportlab.pdfgen import canvas
 
 from analysis import analyze
 from extraction import apply_mapping_overrides, extract_document, FIELD_SYNONYMS
+from reports import build_report
 from storage import build_path, get_object, init_storage, put_object
 
 logger = logging.getLogger(__name__)
@@ -71,6 +72,24 @@ class ShareIn(BaseModel):
 
 class MappingOverrideIn(BaseModel):
     overrides: list[dict[str, Any]] = []
+
+
+class SettingsIn(BaseModel):
+    target_slump: float | None = None
+    min_slump: float | None = None
+    max_slump: float | None = None
+    design_strength: float | None = None
+    slump_unit: str = "mm"
+    strength_unit: str = "MPa"
+    area_unit: str = "cm2"
+    load_unit: str = "kN"
+
+
+class TemplateIn(BaseModel):
+    name: str
+    signature: list[str]
+    mappings: dict[str, str] = {}
+    test_type: str = "strength"
 
 
 def now() -> str:
@@ -395,13 +414,44 @@ async def project_insights(project_id: str, status: str | None = Query(None), ag
     return {"filters": {"status": status, "age": age, "supplier": supplier, "location": location, "date_from": date_from, "date_to": date_to}, "total": len(filtered), "strength_by_age": strength, "slump_by_date": slump, "supplier_comparison": list(supplier_totals.values()), "anomaly_trends": anomalies, "summary": {"headline": f"{len(filtered)} records in the current view", "recommendation": "Verify flagged records against source documents, dates, curing records, and applicable project criteria."}}
 
 
-async def process_document(project_id: str, document_id: str, storage_path: str, filename: str):
+async def _apply_user_templates(document_id: str, user_id: str, extraction: dict) -> dict:
+    """Auto-map a table using saved templates when its header signature matches."""
+    tables = extraction.get("tables") or []
+    if not tables:
+        return extraction
+    templates = await db.mapping_templates.find({"user_id": user_id}, {"_id": 0}).to_list(200)
+    if not templates:
+        return extraction
+    template_by_sig = {t["signature"]: t for t in templates}
+    overrides: list[dict[str, Any]] = []
+    matched: list[str] = []
+    for table in tables:
+        signature = _template_signature(table.get("source_headers", []))
+        template = template_by_sig.get(signature)
+        if not template:
+            continue
+        matched.append(template["name"])
+        overrides.append({"table_index": table["table_index"], "test_type": template.get("test_type") or table["test_type"]})
+        header_index = {(header or "").strip().lower(): index for index, header in enumerate(table.get("source_headers", []))}
+        for header, field in (template.get("mappings") or {}).items():
+            key = (header or "").strip().lower()
+            if key in header_index:
+                overrides.append({"table_index": table["table_index"], "column_index": header_index[key], "field": field})
+    if not overrides:
+        return extraction
+    updated = apply_mapping_overrides(extraction, overrides)
+    updated["applied_templates"] = matched
+    return updated
+
+
+async def process_document(project_id: str, document_id: str, storage_path: str, filename: str, user_id: str):
     """Background worker: fetches from cloud storage and runs the full extraction pipeline."""
     await db.documents.update_one({"id": document_id}, {"$set": {"status": "processing", "progress": 20}})
     try:
         data, _ = get_object(storage_path)
         await db.documents.update_one({"id": document_id}, {"$set": {"progress": 55}})
         extraction = extract_document(data, filename)
+        extraction = await _apply_user_templates(document_id, user_id, extraction)
         await db.documents.update_one({"id": document_id}, {"$set": {"status": "completed", "progress": 100, "extraction": extraction, "processed_at": now()}})
     except Exception as exc:
         logger.exception("Document processing failed")
@@ -432,18 +482,19 @@ async def upload(project_id: str, background_tasks: BackgroundTasks, file: Uploa
         stored_locally = True
     doc = {"id": document_id, "project_id": project_id, "filename": file.filename, "size": len(data), "storage_path": storage_path, "storage_backend": "local" if stored_locally else "emergent", "uploaded_by": user["id"], "created_at": now(), "status": "queued", "progress": 0}
     if stored_locally:
-        async def _local(project_id_local: str, document_id_local: str, path: str, name: str):
+        async def _local(project_id_local: str, document_id_local: str, path: str, name: str, uploader: str):
             await db.documents.update_one({"id": document_id_local}, {"$set": {"status": "processing", "progress": 20}})
             try:
                 content = Path(path).read_bytes()
                 extraction = extract_document(content, name)
+                extraction = await _apply_user_templates(document_id_local, uploader, extraction)
                 await db.documents.update_one({"id": document_id_local}, {"$set": {"status": "completed", "progress": 100, "extraction": extraction, "processed_at": now()}})
             except Exception as exc:
                 logger.exception("Local extraction failed")
                 await db.documents.update_one({"id": document_id_local}, {"$set": {"status": "failed", "progress": 100, "error": str(exc)}})
-        background_tasks.add_task(_local, project_id, document_id, storage_path, file.filename)
+        background_tasks.add_task(_local, project_id, document_id, storage_path, file.filename, user["id"])
     else:
-        background_tasks.add_task(process_document, project_id, document_id, storage_path, file.filename)
+        background_tasks.add_task(process_document, project_id, document_id, storage_path, file.filename, user["id"])
     await db.documents.insert_one(doc.copy())
     return {k: v for k, v in doc.items() if k not in {"storage_path"}}
 
@@ -469,6 +520,50 @@ async def override_mapping(project_id: str, document_id: str, body: MappingOverr
     return extraction
 
 
+@api.patch("/projects/{project_id}/settings")
+async def update_settings(project_id: str, body: SettingsIn, access=Depends(project_access)):
+    _, role, _ = access
+    if role == "VIEWER":
+        raise HTTPException(403, "Viewer access cannot edit settings")
+    await db.projects.update_one({"id": project_id}, {"$set": {"settings": body.model_dump(), "settings_updated_at": now()}})
+    return body.model_dump()
+
+
+def _template_signature(headers: list[str]) -> str:
+    """Order-independent digest that recognises the same lab report layout."""
+    normalized = sorted((h or "").strip().lower() for h in headers if (h or "").strip())
+    return hashlib.sha256("||".join(normalized).encode()).hexdigest()
+
+
+@api.get("/mapping-templates")
+async def list_templates(user=Depends(current_user)):
+    return await db.mapping_templates.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(100)
+
+
+@api.post("/mapping-templates")
+async def create_template(body: TemplateIn, user=Depends(current_user)):
+    template = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "name": body.name,
+        "signature": _template_signature(body.signature),
+        "source_headers": body.signature,
+        "mappings": body.mappings,
+        "test_type": body.test_type,
+        "created_at": now(),
+    }
+    await db.mapping_templates.insert_one(template.copy())
+    return template
+
+
+@api.delete("/mapping-templates/{template_id}")
+async def delete_template(template_id: str, user=Depends(current_user)):
+    result = await db.mapping_templates.delete_one({"id": template_id, "user_id": user["id"]})
+    if not result.deleted_count:
+        raise HTTPException(404, "Template not found")
+    return {"ok": True}
+
+
 @api.post("/projects/{project_id}/import/{document_id}")
 async def finalize_import(project_id: str, document_id: str, access=Depends(project_access)):
     _, role, _ = access
@@ -491,36 +586,11 @@ async def finalize_import(project_id: str, document_id: str, access=Depends(proj
 
 
 @api.get("/projects/{project_id}/report")
-async def report(project_id: str, access=Depends(project_access)):
+async def report(project_id: str, lang: str = Query("en"), access=Depends(project_access)):
     project, _, _ = access
     records = await db.records.find({"project_id": project_id}, {"_id": 0}).to_list(5000)
-    buffer = io.BytesIO()
-    pdf = canvas.Canvas(buffer, pagesize=A4)
-    pdf.setTitle("Concrete Quality Assessment Report")
-    pdf.setFillColorRGB(0.85, 0.35, 0.02)
-    pdf.setFont("Helvetica-Bold", 20)
-    pdf.drawString(48, 790, "CONCRETE QUALITY ASSESSMENT REPORT")
-    pdf.setFillColorRGB(0.08, 0.1, 0.14)
-    pdf.setFont("Helvetica", 11)
-    y = 755
-    for line in [f"Project: {project['name']} ({project.get('code', '')})", f"Generated: {datetime.now().strftime('%d %B %Y')}", f"Records: {len(records)}", "", "This report is a decision-support tool and does not replace laboratory testing or professional engineering judgment."]:
-        pdf.drawString(48, y, line)
-        y -= 20
-    for record in records[:24]:
-        row = record["record"]
-        label = row.get("sample_code") or row.get("record_number") or "Unidentified"
-        value = row.get("compressive_strength") or row.get("actual_slump") or row.get("derived_strength") or "—"
-        unit = "MPa" if record["test_type"] == "strength" else "mm"
-        pdf.drawString(60, y, f"{label}: {value} {unit} | {row.get('assessment', {}).get('status', 'UNASSESSED')}")
-        y -= 15
-        if y < 60:
-            pdf.showPage()
-            y = 790
-    pdf.setFont("Helvetica-Oblique", 8)
-    pdf.drawString(48, 30, "Concrete Quality Assessment System | Developed by Nathan | D4 Civil Engineering")
-    pdf.save()
-    buffer.seek(0)
-    return StreamingResponse(buffer, media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=concrete-quality-report.pdf"})
+    pdf_bytes = build_report(project, records, lang if lang in {"en", "id"} else "en")
+    return StreamingResponse(io.BytesIO(pdf_bytes), media_type="application/pdf", headers={"Content-Disposition": "attachment; filename=concrete-quality-report.pdf"})
 
 
 app.include_router(api)

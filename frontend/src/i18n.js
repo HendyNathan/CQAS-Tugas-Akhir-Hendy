@@ -249,6 +249,29 @@ const dictionaries = {
     "recommendation.strength.actual_missing": "Enter the compressive strength value from the laboratory report.",
     "recommendation.strength.planned_missing": "Set the project design strength in Settings so results can be assessed.",
     "recommendation.strength.review": "Recommended checks: specimen ID · casting date · test age · curing records · delivery records · lab procedure · data entry.",
+
+    // Settings
+    "settings.title": "Project settings",
+    "settings.eyebrow": "ACCEPTANCE CRITERIA",
+    "settings.subtitle": "Set the project targets. Assessments will re-run against these values.",
+    "settings.targetSlump": "Target slump",
+    "settings.minSlump": "Minimum slump",
+    "settings.maxSlump": "Maximum slump",
+    "settings.designStrength": "Design compressive strength",
+    "settings.slumpUnit": "Slump display unit",
+    "settings.strengthUnit": "Strength display unit",
+    "settings.areaUnit": "Area display unit",
+    "settings.loadUnit": "Load display unit",
+    "settings.open": "Settings",
+    "settings.save": "Save settings",
+    "settings.saved": "Settings saved. Re-run analysis to apply.",
+    "settings.unitsGroup": "Display units",
+
+    // Mapping templates
+    "template.saveAs": "Save mapping template",
+    "template.namePrompt": "Template name",
+    "template.saved": "Mapping template saved for future imports.",
+    "template.autoApplied": "Auto-applied mapping template:",
   },
   id: {
     // Navigation & shell
@@ -496,6 +519,29 @@ const dictionaries = {
     "recommendation.strength.actual_missing": "Isi nilai kuat tekan dari laporan laboratorium.",
     "recommendation.strength.planned_missing": "Tetapkan kuat tekan rencana proyek pada Pengaturan agar hasil dapat dinilai.",
     "recommendation.strength.review": "Rekomendasi verifikasi: identitas sampel · tanggal cor · umur uji · catatan curing · catatan pengiriman · prosedur laboratorium · entri data.",
+
+    // Settings
+    "settings.title": "Pengaturan proyek",
+    "settings.eyebrow": "KRITERIA PENERIMAAN",
+    "settings.subtitle": "Tetapkan target proyek. Penilaian akan dijalankan ulang mengikuti nilai ini.",
+    "settings.targetSlump": "Slump rencana",
+    "settings.minSlump": "Slump minimum",
+    "settings.maxSlump": "Slump maksimum",
+    "settings.designStrength": "Kuat tekan rencana",
+    "settings.slumpUnit": "Satuan tampilan slump",
+    "settings.strengthUnit": "Satuan tampilan kuat tekan",
+    "settings.areaUnit": "Satuan tampilan luas",
+    "settings.loadUnit": "Satuan tampilan beban",
+    "settings.open": "Pengaturan",
+    "settings.save": "Simpan pengaturan",
+    "settings.saved": "Pengaturan disimpan. Jalankan ulang analisis untuk menerapkannya.",
+    "settings.unitsGroup": "Satuan tampilan",
+
+    // Mapping templates
+    "template.saveAs": "Simpan template pemetaan",
+    "template.namePrompt": "Nama template",
+    "template.saved": "Template pemetaan disimpan untuk impor berikutnya.",
+    "template.autoApplied": "Template pemetaan diterapkan otomatis:",
   },
 };
 

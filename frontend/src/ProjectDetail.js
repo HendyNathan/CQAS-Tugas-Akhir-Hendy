@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { BarChart, Bar, CartesianGrid, LineChart, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Activity, ArrowRight, CheckCircle2, FileText, Share2, UploadCloud, X, Info } from "lucide-react";
+import { Activity, ArrowRight, CheckCircle2, FileText, Settings as SettingsIcon, Share2, UploadCloud, X, Info, Save } from "lucide-react";
 import axios from "axios";
 import { useLanguage, translateAssessment, translateWarning } from "@/i18n";
+import { formatWithUnit, UNIT_LABELS } from "@/units";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const api = axios.create({ baseURL: API, withCredentials: true });
@@ -163,6 +164,16 @@ function ImportReview({ projectId, document, fields, onClose, onImported }) {
       setMessage(`${t("review.typeClassified")} ${typeLabel}.`);
     } finally { setBusy(false); }
   };
+  const saveTemplate = async (table) => {
+    const name = window.prompt(t("template.namePrompt"), document.filename?.replace(/\.[^.]+$/, "") || "Template");
+    if (!name) return;
+    setBusy(true);
+    try {
+      const mappings = Object.fromEntries(table.used_columns.map((col) => [col.header, col.field]));
+      await api.post("/mapping-templates", { name, signature: table.source_headers, mappings, test_type: table.test_type });
+      setMessage(t("template.saved"));
+    } finally { setBusy(false); }
+  };
   const finalize = async () => {
     setBusy(true);
     try {
@@ -178,18 +189,22 @@ function ImportReview({ projectId, document, fields, onClose, onImported }) {
         <span className="eyebrow">{t("review.eyebrow")} · {document.filename}</span>
         <h2>{data?.detected || 0} {t("review.readyPrefix")}</h2>
         <p className="muted">{t("review.subtitle")}</p>
+        {data?.applied_templates?.length ? <div className="notice" data-testid="auto-template-banner"><Info size={16} /><span>{t("template.autoApplied")} {data.applied_templates.join(", ")}</span></div> : null}
         {message && <div className="success-box" data-testid="review-message">{message}</div>}
         {tables.map((table) => (
           <section className="review-table" key={table.table_index} data-testid={`review-table-${table.table_index}`}>
             <header>
               <div><strong>{t("review.table")} {table.table_index + 1}</strong><small>{table.records.length} {t("review.rows")} {table.header_row}</small></div>
-              <label>{t("review.testType")}
-                <select value={table.test_type} onChange={(e) => changeType(table.table_index, e.target.value)} data-testid={`review-type-${table.table_index}`} disabled={busy}>
-                  <option value="strength">{t("review.typeStrength")}</option>
-                  <option value="slump">{t("review.typeSlump")}</option>
-                  <option value="unknown">{t("review.typeUnknown")}</option>
-                </select>
-              </label>
+              <div className="review-header-actions">
+                <label>{t("review.testType")}
+                  <select value={table.test_type} onChange={(e) => changeType(table.table_index, e.target.value)} data-testid={`review-type-${table.table_index}`} disabled={busy}>
+                    <option value="strength">{t("review.typeStrength")}</option>
+                    <option value="slump">{t("review.typeSlump")}</option>
+                    <option value="unknown">{t("review.typeUnknown")}</option>
+                  </select>
+                </label>
+                <button type="button" className="button button-outline" onClick={() => saveTemplate(table)} disabled={busy || !table.used_columns.length} data-testid={`save-template-${table.table_index}`}><Save size={15} /> {t("template.saveAs")}</button>
+              </div>
             </header>
             <div className="mapping-grid">
               {table.used_columns.map((column) => (
@@ -232,12 +247,68 @@ function ImportReview({ projectId, document, fields, onClose, onImported }) {
   );
 }
 
-function ProjectDetail() {
+function SettingsPanel({ project, onClose, onSaved }) {
   const { t } = useLanguage();
+  const settings = project.settings || {};
+  const [form, setForm] = useState({
+    target_slump: settings.target_slump ?? "",
+    min_slump: settings.min_slump ?? "",
+    max_slump: settings.max_slump ?? "",
+    design_strength: settings.design_strength ?? "",
+    slump_unit: settings.slump_unit || "mm",
+    strength_unit: settings.strength_unit || "MPa",
+    area_unit: settings.area_unit || "cm2",
+    load_unit: settings.load_unit || "kN",
+  });
+  const [busy, setBusy] = useState(false);
+  const submit = async (event) => {
+    event.preventDefault(); setBusy(true);
+    const payload = {
+      ...form,
+      target_slump: form.target_slump === "" ? null : Number(form.target_slump),
+      min_slump: form.min_slump === "" ? null : Number(form.min_slump),
+      max_slump: form.max_slump === "" ? null : Number(form.max_slump),
+      design_strength: form.design_strength === "" ? null : Number(form.design_strength),
+    };
+    try {
+      const res = await api.patch(`/projects/${project.id}/settings`, payload);
+      onSaved(res.data);
+    } finally { setBusy(false); }
+  };
+  const update = (key, value) => setForm((state) => ({ ...state, [key]: value }));
+  return (
+    <div className="modal-backdrop">
+      <form className="modal wide" onSubmit={submit} data-testid="settings-modal">
+        <button type="button" className="modal-close" onClick={onClose} data-testid="settings-close-button"><X size={18} /></button>
+        <span className="eyebrow">{t("settings.eyebrow")}</span>
+        <h2>{t("settings.title")}</h2>
+        <p className="muted">{t("settings.subtitle")}</p>
+        <div className="form-grid">
+          <label>{t("settings.targetSlump")} ({UNIT_LABELS[form.slump_unit]})<input type="number" value={form.target_slump} onChange={(e) => update("target_slump", e.target.value)} data-testid="settings-target-slump" /></label>
+          <label>{t("settings.minSlump")} ({UNIT_LABELS[form.slump_unit]})<input type="number" value={form.min_slump} onChange={(e) => update("min_slump", e.target.value)} data-testid="settings-min-slump" /></label>
+          <label>{t("settings.maxSlump")} ({UNIT_LABELS[form.slump_unit]})<input type="number" value={form.max_slump} onChange={(e) => update("max_slump", e.target.value)} data-testid="settings-max-slump" /></label>
+          <label>{t("settings.designStrength")} ({UNIT_LABELS[form.strength_unit]})<input type="number" step="0.1" value={form.design_strength} onChange={(e) => update("design_strength", e.target.value)} data-testid="settings-design-strength" /></label>
+        </div>
+        <div className="eyebrow" style={{ marginTop: 22 }}>{t("settings.unitsGroup")}</div>
+        <div className="form-grid">
+          <label>{t("settings.slumpUnit")}<select value={form.slump_unit} onChange={(e) => update("slump_unit", e.target.value)} data-testid="settings-slump-unit"><option value="mm">mm</option><option value="cm">cm</option></select></label>
+          <label>{t("settings.strengthUnit")}<select value={form.strength_unit} onChange={(e) => update("strength_unit", e.target.value)} data-testid="settings-strength-unit"><option value="MPa">MPa</option><option value="N/mm2">N/mm²</option><option value="kgf/cm2">kgf/cm²</option><option value="psi">psi</option></select></label>
+          <label>{t("settings.areaUnit")}<select value={form.area_unit} onChange={(e) => update("area_unit", e.target.value)} data-testid="settings-area-unit"><option value="cm2">cm²</option><option value="mm2">mm²</option></select></label>
+          <label>{t("settings.loadUnit")}<select value={form.load_unit} onChange={(e) => update("load_unit", e.target.value)} data-testid="settings-load-unit"><option value="kN">kN</option><option value="N">N</option></select></label>
+        </div>
+        <button className="button button-primary button-wide" disabled={busy} data-testid="settings-save-button">{t("settings.save")} <ArrowRight size={17} /></button>
+      </form>
+    </div>
+  );
+}
+
+function ProjectDetail() {
+  const { t, lang } = useLanguage();
   const { id } = useParams();
   const [project, setProject] = useState(null);
   const [type, setType] = useState("strength");
   const [showForm, setShowForm] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
   const [record, setRecord] = useState({ sample_code: "", test_date: "", casting_date: "", age_days: "", compressive_strength: "", planned_strength: "", actual_slump: "", target_slump: "", notes: "" });
   const [upload, setUpload] = useState(null);
   const [job, setJob] = useState(null);
@@ -280,11 +351,13 @@ function ProjectDetail() {
   const strength = project.records?.filter((item) => item.test_type === "strength") || [];
   const slump = project.records?.filter((item) => item.test_type === "slump") || [];
   const shown = type === "strength" ? strength : slump;
+  const strengthUnit = project.settings?.strength_unit || "MPa";
+  const slumpUnit = project.settings?.slump_unit || "mm";
   return (
     <main className="page">
       <div className="project-hero">
         <div><Link className="back-link" to="/projects" data-testid="project-back-link">{t("project.back")}</Link><span className="eyebrow">{t("project.eyebrow")} / {project.code || t("projects.uncoded")}</span><h1>{project.name}</h1><p className="muted">{project.description || t("project.workspace")} · {project.location || t("projects.locationPending")}</p></div>
-        <div className="hero-actions"><button className="button button-outline" onClick={analyzeNow} data-testid="analyze-project-button"><Activity size={17} /> {t("project.reanalyze")}</button><a className="button button-primary" href={`${API}/projects/${id}/report`} target="_blank" rel="noreferrer" data-testid="download-report-button"><FileText size={17} /> {t("project.report")}</a></div>
+        <div className="hero-actions"><button className="button button-outline" onClick={() => setShowSettings(true)} data-testid="open-settings-button"><SettingsIcon size={17} /> {t("settings.open")}</button><button className="button button-outline" onClick={analyzeNow} data-testid="analyze-project-button"><Activity size={17} /> {t("project.reanalyze")}</button><a className="button button-primary" href={`${API}/projects/${id}/report?lang=${lang}`} target="_blank" rel="noreferrer" data-testid="download-report-button"><FileText size={17} /> {t("project.report")}</a></div>
       </div>
       {message && <div className="success-box" data-testid="project-message">{message}</div>}
       <div className="project-layout">
@@ -303,7 +376,7 @@ function ProjectDetail() {
                     <td><strong>{row.sample_code || row.record_number || t("project.unidentified")}</strong><small>{row.source?.file ? `${t("project.sourceLabel")} ${row.source.file} · ${t("project.rowLabel")} ${row.source.row || "-"}` : row.notes || t("project.manualEntry")}</small></td>
                     <td>{row.test_date || "—"}</td>
                     <td>{type === "strength" ? fmt(row.age_days, "days") : "—"}</td>
-                    <td className="mono">{type === "strength" ? fmt(row.compressive_strength || row.derived_strength, row.units?.compressive_strength?.toUpperCase() || "MPa") : fmt(row.actual_slump, "mm")}</td>
+                    <td className="mono">{type === "strength" ? formatWithUnit(row.compressive_strength ?? row.derived_strength, "MPa", strengthUnit) : formatWithUnit(row.actual_slump, "mm", slumpUnit)}</td>
                     <td><Status assessment={row.assessment} /></td>
                   </tr>
                   {isOpen && (row.assessment || row.warnings?.length) && (
@@ -353,6 +426,7 @@ function ProjectDetail() {
       <InsightsPanel projectId={id} />
       <SharePanel projectId={id} />
       {showForm && <RecordForm type={type} record={record} setRecord={setRecord} onClose={() => setShowForm(false)} onSave={save} />}
+      {showSettings && <SettingsPanel project={project} onClose={() => setShowSettings(false)} onSaved={(next) => { setProject((prev) => ({ ...prev, settings: next })); setShowSettings(false); setMessage(t("settings.saved")); }} />}
       {reviewDoc && <ImportReview projectId={id} document={reviewDoc} fields={fields} onClose={() => setReviewDoc(null)} onImported={(count) => { setReviewDoc(null); setMessage(`${count} ${t("project.messageImported")}`); load(); }} />}
     </main>
   );
