@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?><testsuites name="pytest tests"><testsuite name="pytest" errors="0" failures="1" skipped="0" tests="3" time="1.616" timestamp="2026-08-27T11:47:29.412492+00:00" hostname="agent-env-99b158bf-d32e-4091-b031-8f20997cf973"><testcase classname="tests.test_auth_security_iteration2" name="test_login_sets_httponly_cookie_and_me_returns_safe_user" time="0.552" /><testcase classname="tests.test_auth_security_iteration2" name="test_cors_allows_configured_origin_with_credentials" time="0.087"><failure message="AssertionError: assert '*' == 'https://slum...gentagent.com'&#10;  &#10;  - https://slump-check.preview.emergentagent.com&#10;  + *">backend/tests/test_auth_security_iteration2.py:38: in test_cors_allows_configured_origin_with_credentials
+    assert response.headers.get("access-control-allow-origin") == FRONTEND_ORIGIN
+E   AssertionError: assert '*' == 'https://slum...gentagent.com'
+E     
+E     - https://slump-check.preview.emergentagent.com
+E     + *</failure></testcase><testcase classname="tests.test_auth_security_iteration2" name="test_unknown_identifier_locks_after_five_failures" time="0.506" /></testsuite></testsuites>

@@ -1,0 +1,62 @@
+{
+  "summary": "Backend regression suite passed all six tested workflows. Browser testing passed login, dashboard/demo visibility, mobile navigation, theme toggle, and logout, but project detail navigation is blocked by a React runtime crash.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "/api/auth/login",
+        "issue": "No brute-force lockout or rate limiting is implemented after repeated failed logins."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "ProjectDetail",
+        "issue": "Opening any project causes uncaught React runtime error `destroy is not a function`; project detail, manual records, analysis, upload review, and report UI become unusable.",
+        "selector": "[data-testid^=\"project-row-\"]",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Dashboard project navigation",
+        "issue": "Clicking the seeded project row reaches the project route, then React crashes before [data-testid=add-record-button] renders.",
+        "affected_selectors": ["[data-testid^=\"project-row-\"]", "[data-testid=\"add-record-button\"]"]
+      },
+      {
+        "flow": "Google sign-in",
+        "issue": "Requested Google sign-in is not implemented; the login page explicitly says it can be connected when credentials are supplied.",
+        "affected_selectors": ["[data-testid=\"auth-form\"]"]
+      }
+    ],
+    "design_issues": [
+      {
+        "screen": "Dashboard",
+        "issues": ["Recharts logs width/height -1 warnings during initial render; chart briefly renders without usable bars before layout settles."]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_cqas_regression.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix ProjectDetail useEffect cleanup: its callback currently returns the Axios Promise (`useEffect(load, [id])`), which React treats as a cleanup function and later invokes as destroy.",
+    "Retest project detail, manual strength/slump entry, analysis, upload review/import, and PDF download after the crash fix.",
+    "Implement Google sign-in or explicitly remove it from scope, and add brute-force protection for login.",
+    "Use an explicit CORS origin instead of backend/.env CORS_ORIGINS=\"*\" with credentials."
+  ],
+  "critical_code_review_comments": [
+    "`useEffect(load, [id])` is a critical async cleanup bug; wrap the request in an async effect and return only a real cleanup function.",
+    "The requested Google authentication integration is absent, not mocked.",
+    "CORS is configured with wildcard origin plus credentials, which is unsafe and incompatible with credentialed browser requests in standard CORS behavior."
+  ],
+  "updated_files": ["/app/backend/tests/test_cqas_regression.py"],
+  "success_rate": {"backend": "100% (6/6)", "frontend": "60% (login/dashboard/mobile/logout pass; project detail blocked)"},
+  "seed_data_creation": "Created TEST_CQAS_* project and TEST-prefixed strength/slump/import records during regression testing; these persisted because no delete endpoint or cleanup fixture exists.",
+  "retest_needed": true,
+  "should_call_test_agent_after_fix": true,
+  "context_for_next_testing_agent": "Auth/session, seeded demo project, dashboard, API CRUD, deterministic analysis, Indonesian Excel mapping/import, PDF content type, invalid upload validation, mobile menu/theme, and logout were tested. Start by retesting project navigation after fixing the useEffect Promise cleanup crash.",
+  "rca of the issue": "In frontend/src/App.js, ProjectDetail defines `const load = () => api.get(...).then(...)` and passes it directly to `useEffect(load, [id])`. React interprets the returned Axios Promise as the effect cleanup callback. On route/component lifecycle cleanup it invokes the Promise as a function, producing `TypeError: destroy is not a function` and preventing the detail screen from rendering."
+}

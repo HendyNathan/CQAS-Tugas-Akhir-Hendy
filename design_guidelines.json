@@ -1,0 +1,58 @@
+{
+  "app_name": "Concrete Quality Assessment System (CQAS)",
+  "context": "Civil Engineering Final Project & Professional Quality Assurance Platform for Slump and Compressive Strength Testing (Indonesian/English standards SNI, ASTM, AS 1012)",
+  "design_archetype": "ORGANIC & EARTHY mixed with SWISS & HIGH-CONTRAST (Industrial / Engineering Precision)",
+  "typography": {
+    "headings": {
+      "font_family": "Chivo, sans-serif",
+      "weights": ["700", "900"],
+      "letter_spacing": "tracking-tight"
+    },
+    "body": {
+      "font_family": "IBM Plex Sans, sans-serif",
+      "weights": ["400", "500", "600"]
+    },
+    "mono": {
+      "font_family": "JetBrains Mono, monospace"
+    }
+  },
+  "colors": {
+    "primary": "#D97706",
+    "primary_hover": "#B45309",
+    "secondary": "#0F172A",
+    "accent": "#0284C7",
+    "background_light": "#F8FAFC",
+    "background_dark": "#090D16",
+    "surface_light": "#FFFFFF",
+    "surface_dark": "#111827",
+    "border_light": "#E2E8F0",
+    "border_dark": "#1E293B",
+    "text_main": "#0F172A",
+    "text_muted": "#64748B",
+    "success": "#10B981",
+    "warning": "#F59E0B",
+    "danger": "#EF4444"
+  },
+  "grids_and_layouts": {
+    "dashboard_grid": "grid grid-cols-1 md:grid-cols-4 lg:grid-cols-12 gap-6",
+    "bento_hero": "grid grid-cols-1 md:grid-cols-12 gap-8",
+    "card_padding": "p-6 sm:p-8"
+  },
+  "component_path": "/app/frontend/src/components",
+  "image_urls": {
+    "hero_construction": "https://images.unsplash.com/photo-1615461475583-fc3100788a93?crop=entropy&cs=srgb&fm=jpg&q=85",
+    "site_structure": "https://images.unsplash.com/photo-1615461476249-718ef8bc369c?crop=entropy&cs=srgb&fm=jpg&q=85"
+  },
+  "instructions_to_main_agent": [
+    "Build full stack concrete quality assessment system with MongoDB, OCR/Excel parser, PDF reports, auth, projects, Navapark Business Suites demo data.",
+    "Ensure all interactive elements have data-testid attributes.",
+    "Implement bilingual Indonesian/English field normalization and fuzzy mapping for lab reports.",
+    "Follow industrial engineering aesthetic with crisp borders, tabular data clarity, and high-contrast charts."
+  ],
+  "universal_guidelines": [
+    "Do not use complete transparent backgrounds for overlays or headers.",
+    "Always set explicit text color on hover.",
+    "Respect user prefers-reduced-motion where applicable.",
+    "Ensure APCA / WCAG AA contrast compliance."
+  ]
+}
