@@ -1,0 +1,545 @@
+import { createContext, useContext, useEffect, useState } from "react";
+
+const STORAGE_KEY = "cqas-language";
+
+const dictionaries = {
+  en: {
+    // Navigation & shell
+    "brand.long": "Concrete Quality Assessment",
+    "brand.short": "CQAS",
+    "nav.overview": "Overview",
+    "nav.projects": "Projects",
+    "nav.about": "About / Contact",
+    "shell.workspace": "Quality workspace",
+    "shell.systemReady": "System ready",
+    "shell.themeLight": "Light mode",
+    "shell.themeDark": "Dark mode",
+    "shell.language": "Language",
+    "loading": "Loading CQAS…",
+
+    // Auth
+    "auth.eyebrowLogin": "SECURE PROJECT ACCESS",
+    "auth.eyebrowRegister": "CREATE WORKSPACE ACCESS",
+    "auth.welcome": "Welcome back",
+    "auth.create": "Create your account",
+    "auth.subLogin": "Continue your concrete quality assessment.",
+    "auth.subRegister": "Start assessing your concrete test records.",
+    "auth.email": "Email",
+    "auth.password": "Password",
+    "auth.name": "Name",
+    "auth.namePlaceholder": "Your name",
+    "auth.signIn": "Sign in",
+    "auth.checking": "Checking…",
+    "auth.or": "or",
+    "auth.google": "Continue with Google",
+    "auth.switchToRegister": "New to CQAS?",
+    "auth.switchToLogin": "Already have an account?",
+    "auth.linkRegister": "Create account",
+    "auth.linkLogin": "Sign in",
+    "auth.noteBoth": "Email/password and Emergent Google sign-in are both active. Sessions expire automatically.",
+    "auth.artEyebrow": "QUALITY CONTROL / 01",
+    "auth.artTitle1": "Make every test result",
+    "auth.artTitle2": "traceable.",
+    "auth.artSub": "One workspace for concrete slump and compressive-strength verification.",
+    "auth.artFoot": "D4 CIVIL ENGINEERING · PROJECT CONTROL",
+    "auth.googleCompleting": "Completing Google sign-in…",
+    "auth.googleError": "Google sign-in could not be completed. Please try again.",
+    "auth.genericError": "Unable to complete sign in.",
+
+    // Dashboard
+    "dash.eyebrow": "CONTROL CENTER / 01",
+    "dash.greeting": "Good day,",
+    "dash.subtitle": "A clear view of your concrete quality evidence.",
+    "dash.newProject": "New project",
+    "dash.stat.projects": "Projects tracked",
+    "dash.stat.documents": "Source documents",
+    "dash.stat.slump": "Slump records",
+    "dash.stat.strength": "Strength records",
+    "dash.status.eyebrow": "ASSESSMENT STATUS",
+    "dash.status.title": "Results at a glance",
+    "dash.viewProjects": "View projects",
+    "dash.active.eyebrow": "ACTIVE PROJECTS",
+    "dash.active.title": "Recent work",
+    "dash.emptyProjects": "Your first project will appear here.",
+    "dash.disclaimer": "Automated assessment supports review; it does not replace laboratory testing, applicable standards, or professional judgment.",
+    "dash.engineeringNote": "Engineering note:",
+
+    // Projects list
+    "projects.eyebrow": "PROJECT REGISTER / 02",
+    "projects.title1": "Projects",
+    "projects.title2": "under review.",
+    "projects.subtitle": "Your project evidence, organized and traceable.",
+    "projects.new": "New project",
+    "projects.empty": "No projects yet. Create one to begin.",
+    "projects.uncoded": "UNCODED",
+    "projects.noDescription": "No description added yet.",
+    "projects.locationPending": "Location pending",
+    "projects.memberSingular": "member",
+    "projects.newTitle": "Set the project frame.",
+    "projects.name": "Project name",
+    "projects.namePlaceholder": "e.g. Navapark Business Suites",
+    "projects.code": "Project code",
+    "projects.location": "Location",
+    "projects.locationPlaceholder": "Site location",
+    "projects.description": "Description",
+    "projects.descriptionPlaceholder": "Purpose and scope",
+    "projects.create": "Create project",
+
+    // Project detail
+    "project.back": "← Projects",
+    "project.eyebrow": "PROJECT",
+    "project.workspace": "Concrete quality assessment workspace",
+    "project.reanalyze": "Re-run analysis",
+    "project.report": "PDF report",
+    "project.records": "TEST RECORDS",
+    "project.recordsTitle": "Evidence log",
+    "project.addRecord": "Add record",
+    "project.strengthFilter": "Compressive strength",
+    "project.slumpFilter": "Slump",
+    "project.thSample": "Sample",
+    "project.thDate": "Date",
+    "project.thAge": "Age",
+    "project.thResult": "Result",
+    "project.thStatus": "Status",
+    "project.unidentified": "Unidentified",
+    "project.sourceLabel": "Source:",
+    "project.rowLabel": "row",
+    "project.manualEntry": "Manual entry",
+    "project.emptyRecords": "No records yet.",
+    "project.pipeline": "DOCUMENT PIPELINE",
+    "project.pipelineTitle": "Import a report",
+    "project.pipelineSub": "PDF, XLSX, XLS · up to 100 MB · Indonesian & English headers, digital and scanned PDFs supported.",
+    "project.dropzoneTitle": "Choose a lab report",
+    "project.dropzoneHint": "Digital PDF, scanned PDF, or spreadsheet",
+    "project.dropzoneSelected": "MB selected",
+    "project.startProcessing": "Start processing",
+    "project.reviewReady": "IMPORT REVIEW READY",
+    "project.processingFailed": "PROCESSING FAILED",
+    "project.processing": "PROCESSING",
+    "project.openReview": "Open import review",
+    "project.docHistoryImported": "imported",
+    "project.docReview": "Review",
+    "project.messageSaved": "Record saved for analysis.",
+    "project.messageAnalyzed": "Assessment refreshed using deterministic project rules.",
+    "project.messageOverLimit": "File exceeds the 100 MB limit.",
+    "project.messageUploaded": "Upload stored. Background processing started.",
+    "project.messageReviewReady": "records ready for review.",
+    "project.messageImported": "records imported.",
+    "project.messageUploadFailed": "Upload could not be processed.",
+
+    // Manual record form
+    "record.eyebrowStrength": "MANUAL RECORD / COMPRESSIVE STRENGTH",
+    "record.eyebrowSlump": "MANUAL RECORD / SLUMP",
+    "record.formTitle": "Add traceable test data.",
+    "record.sampleCode": "Sample code",
+    "record.testDate": "Test date",
+    "record.castingDate": "Casting date",
+    "record.age": "Age (days)",
+    "record.compressive": "Compressive strength (MPa)",
+    "record.designStrength": "Design strength (MPa)",
+    "record.actualSlump": "Actual slump (mm)",
+    "record.targetSlump": "Target slump (mm)",
+    "record.notes": "Notes",
+    "record.save": "Save record",
+
+    // Insights
+    "insights.eyebrow": "ENGINEERING INSIGHTS",
+    "insights.title": "Compare the evidence",
+    "insights.refresh": "Refresh view",
+    "insights.filterStatus.all": "All statuses",
+    "insights.filterAge": "Age days",
+    "insights.filterSupplier": "Supplier",
+    "insights.filterLocation": "Element / location",
+    "insights.total": "records in view",
+    "insights.recommendation": "Verify flagged records against source documents, dates, curing records, and applicable project criteria.",
+    "insights.chartStrength": "Strength by age",
+    "insights.chartSupplier": "Supplier comparison",
+    "insights.verificationTrend": "Verification trend",
+    "insights.noAnomalies": "No anomaly flags in this filtered view.",
+    "insights.undated": "Undated",
+
+    // Sharing
+    "share.eyebrow": "CONTROLLED ACCESS",
+    "share.title": "Share project evidence",
+    "share.subtitle": "Create an unguessable link. The owner can disable it at any time.",
+    "share.permission": "Permission",
+    "share.viewer": "VIEWER · read only",
+    "share.editor": "EDITOR · add evidence",
+    "share.optionalExpiry": "Optional expiry",
+    "share.create": "Create secure link",
+    "share.linkReady": "link ready",
+    "share.expires": "Expires",
+    "share.noExpiry": "No expiry",
+
+    // Import Review modal
+    "review.eyebrow": "IMPORT REVIEW",
+    "review.readyPrefix": "records ready to save.",
+    "review.subtitle": "Confirm the column mapping and test-type. Unmapped columns are preserved as source metadata.",
+    "review.table": "Table",
+    "review.rows": "rows · source header row",
+    "review.testType": "Test type",
+    "review.typeStrength": "Compressive strength",
+    "review.typeSlump": "Slump",
+    "review.typeUnknown": "Undetermined",
+    "review.column": "Column",
+    "review.manual": "manual",
+    "review.auto": "auto",
+    "review.unmapped": "Unmapped · suggestion:",
+    "review.noMatch": "no match",
+    "review.mapTo": "Map to…",
+    "review.showing": "Showing 4 of",
+    "review.rowsSuffix": "rows.",
+    "review.cancel": "Cancel import",
+    "review.save": "Save",
+    "review.saveSuffix": "records",
+    "review.mappedTo": "Mapped column to",
+    "review.mappingCleared": "Column mapping cleared.",
+    "review.mappingError": "Could not update mapping.",
+    "review.typeClassified": "Table classified as",
+
+    // Shared view
+    "shared.eyebrow": "SHARED QUALITY EVIDENCE",
+    "shared.subtitleWithExpiry": "Read-only project evidence shared securely.",
+    "shared.expires": "Expires",
+    "shared.noExpiry": "No expiry set.",
+    "shared.loading": "Loading shared evidence…",
+    "shared.linkUnavailable": "Link unavailable",
+
+    // About
+    "about.eyebrow": "ABOUT / CONTACT",
+    "about.title1": "Built for",
+    "about.title2": "evidence-led",
+    "about.title3": "quality control.",
+    "about.lead": "Concrete Quality Assessment System is a D4 Civil Engineering project for making document-based test review more consistent, explainable, and traceable.",
+    "about.disclaimerTitle": "Engineering disclaimer",
+    "about.disclaimer": "This system is developed as a digital quality-control assessment and decision-support tool. Automated assessment does not replace laboratory testing, applicable standards, project specifications, or professional engineering judgment.",
+    "about.developedBy": "Developed by",
+    "about.program": "D4 Civil Engineering",
+
+    // Status labels (assessment result values)
+    "status.COMPLIANT": "Compliant",
+    "status.WARNING": "Warning",
+    "status.NON-COMPLIANT": "Non-compliant",
+    "status.INSUFFICIENT DATA": "Insufficient data",
+    "status.UNASSESSED": "Unassessed",
+
+    // Rule → reason translations
+    "rule.slump.actual.required": "Actual slump is missing.",
+    "rule.slump.minimum": "Actual slump is below the configured minimum acceptance limit.",
+    "rule.slump.maximum": "Actual slump is above the configured maximum acceptance limit.",
+    "rule.slump.target.missing": "Target slump is missing; verify against project criteria.",
+    "rule.slump.range": "Actual slump is within the configured acceptance criteria.",
+    "rule.strength.actual.required": "Compressive strength is missing.",
+    "rule.strength.planned.missing": "Design strength is missing; verify against project criteria.",
+    "rule.strength.design.low": "Actual strength is below the design value and requires verification.",
+    "rule.strength.design.ok": "Actual strength meets or exceeds the design value.",
+
+    // Warning / anomaly codes
+    "warn.date.test_before_casting": "Test date is earlier than casting date.",
+    "warn.age.inconsistent": "Calculated age is approximately {calculated} days, while extracted age is {extracted} days. Verify test date, casting date, or age value.",
+    "warn.strength.derived": "Compressive strength was derived from load and area (CALCULATED FROM LOAD AND AREA).",
+    "warn.anomaly.duplicate_sample": "Duplicate sample code: {sample}",
+
+    // Recommendation codes
+    "recommendation.slump.low": "Recommended checks: batching record · delivery duration · workability · testing procedure · documentation.",
+    "recommendation.slump.high": "Recommended checks: mix design · water content · admixture dose · delivery temperature · testing procedure.",
+    "recommendation.slump.target_missing": "Enter the project target slump in Settings before finalising this record.",
+    "recommendation.slump.actual_missing": "Add the measured slump value or verify the source document.",
+    "recommendation.slump.ok": "Retain evidence and continue monitoring subsequent pours.",
+    "recommendation.strength.actual_missing": "Enter the compressive strength value from the laboratory report.",
+    "recommendation.strength.planned_missing": "Set the project design strength in Settings so results can be assessed.",
+    "recommendation.strength.review": "Recommended checks: specimen ID · casting date · test age · curing records · delivery records · lab procedure · data entry.",
+  },
+  id: {
+    // Navigation & shell
+    "brand.long": "Penilaian Kualitas Beton",
+    "brand.short": "CQAS",
+    "nav.overview": "Ringkasan",
+    "nav.projects": "Proyek",
+    "nav.about": "Tentang / Kontak",
+    "shell.workspace": "Ruang kerja kualitas",
+    "shell.systemReady": "Sistem siap",
+    "shell.themeLight": "Mode terang",
+    "shell.themeDark": "Mode gelap",
+    "shell.language": "Bahasa",
+    "loading": "Memuat CQAS…",
+
+    // Auth
+    "auth.eyebrowLogin": "AKSES PROYEK AMAN",
+    "auth.eyebrowRegister": "BUAT AKSES RUANG KERJA",
+    "auth.welcome": "Selamat datang kembali",
+    "auth.create": "Buat akun Anda",
+    "auth.subLogin": "Lanjutkan penilaian kualitas beton Anda.",
+    "auth.subRegister": "Mulai menilai catatan uji beton Anda.",
+    "auth.email": "Email",
+    "auth.password": "Kata sandi",
+    "auth.name": "Nama",
+    "auth.namePlaceholder": "Nama Anda",
+    "auth.signIn": "Masuk",
+    "auth.checking": "Memeriksa…",
+    "auth.or": "atau",
+    "auth.google": "Lanjutkan dengan Google",
+    "auth.switchToRegister": "Baru di CQAS?",
+    "auth.switchToLogin": "Sudah punya akun?",
+    "auth.linkRegister": "Buat akun",
+    "auth.linkLogin": "Masuk",
+    "auth.noteBoth": "Login email/kata sandi dan Google Emergent keduanya aktif. Sesi akan kedaluwarsa otomatis.",
+    "auth.artEyebrow": "KENDALI MUTU / 01",
+    "auth.artTitle1": "Jadikan setiap hasil uji",
+    "auth.artTitle2": "dapat ditelusuri.",
+    "auth.artSub": "Satu ruang kerja untuk verifikasi slump dan kuat tekan beton.",
+    "auth.artFoot": "D4 TEKNIK SIPIL · KENDALI PROYEK",
+    "auth.googleCompleting": "Menyelesaikan login Google…",
+    "auth.googleError": "Login Google tidak dapat diselesaikan. Silakan coba lagi.",
+    "auth.genericError": "Tidak dapat menyelesaikan proses masuk.",
+
+    // Dashboard
+    "dash.eyebrow": "PUSAT KENDALI / 01",
+    "dash.greeting": "Selamat berkarya,",
+    "dash.subtitle": "Pandangan yang jelas atas bukti kualitas beton Anda.",
+    "dash.newProject": "Proyek baru",
+    "dash.stat.projects": "Proyek terpantau",
+    "dash.stat.documents": "Dokumen sumber",
+    "dash.stat.slump": "Catatan slump",
+    "dash.stat.strength": "Catatan kuat tekan",
+    "dash.status.eyebrow": "STATUS PENILAIAN",
+    "dash.status.title": "Hasil dalam sekilas",
+    "dash.viewProjects": "Lihat proyek",
+    "dash.active.eyebrow": "PROYEK AKTIF",
+    "dash.active.title": "Pekerjaan terkini",
+    "dash.emptyProjects": "Proyek pertama Anda akan muncul di sini.",
+    "dash.disclaimer": "Penilaian otomatis mendukung tinjauan; tidak menggantikan pengujian laboratorium, standar yang berlaku, atau penilaian profesional.",
+    "dash.engineeringNote": "Catatan teknis:",
+
+    // Projects list
+    "projects.eyebrow": "DAFTAR PROYEK / 02",
+    "projects.title1": "Proyek",
+    "projects.title2": "dalam peninjauan.",
+    "projects.subtitle": "Bukti proyek Anda, terorganisir dan dapat ditelusuri.",
+    "projects.new": "Proyek baru",
+    "projects.empty": "Belum ada proyek. Buat satu untuk memulai.",
+    "projects.uncoded": "TANPA KODE",
+    "projects.noDescription": "Belum ada deskripsi.",
+    "projects.locationPending": "Lokasi belum diisi",
+    "projects.memberSingular": "anggota",
+    "projects.newTitle": "Tetapkan kerangka proyek.",
+    "projects.name": "Nama proyek",
+    "projects.namePlaceholder": "misalnya Navapark Business Suites",
+    "projects.code": "Kode proyek",
+    "projects.location": "Lokasi",
+    "projects.locationPlaceholder": "Lokasi proyek",
+    "projects.description": "Deskripsi",
+    "projects.descriptionPlaceholder": "Tujuan dan ruang lingkup",
+    "projects.create": "Buat proyek",
+
+    // Project detail
+    "project.back": "← Proyek",
+    "project.eyebrow": "PROYEK",
+    "project.workspace": "Ruang kerja penilaian kualitas beton",
+    "project.reanalyze": "Jalankan ulang analisis",
+    "project.report": "Laporan PDF",
+    "project.records": "CATATAN UJI",
+    "project.recordsTitle": "Log bukti",
+    "project.addRecord": "Tambah catatan",
+    "project.strengthFilter": "Kuat tekan",
+    "project.slumpFilter": "Slump",
+    "project.thSample": "Sampel",
+    "project.thDate": "Tanggal",
+    "project.thAge": "Umur",
+    "project.thResult": "Hasil",
+    "project.thStatus": "Status",
+    "project.unidentified": "Tanpa identitas",
+    "project.sourceLabel": "Sumber:",
+    "project.rowLabel": "baris",
+    "project.manualEntry": "Entri manual",
+    "project.emptyRecords": "Belum ada catatan.",
+    "project.pipeline": "PIPELINE DOKUMEN",
+    "project.pipelineTitle": "Impor laporan",
+    "project.pipelineSub": "PDF, XLSX, XLS · maksimal 100 MB · mendukung header Bahasa Indonesia & Inggris, PDF digital maupun hasil pemindaian.",
+    "project.dropzoneTitle": "Pilih laporan lab",
+    "project.dropzoneHint": "PDF digital, PDF hasil pindai, atau spreadsheet",
+    "project.dropzoneSelected": "MB dipilih",
+    "project.startProcessing": "Mulai pemrosesan",
+    "project.reviewReady": "TINJAUAN IMPOR SIAP",
+    "project.processingFailed": "PEMROSESAN GAGAL",
+    "project.processing": "MEMPROSES",
+    "project.openReview": "Buka tinjauan impor",
+    "project.docHistoryImported": "diimpor",
+    "project.docReview": "Tinjau",
+    "project.messageSaved": "Catatan disimpan untuk dianalisis.",
+    "project.messageAnalyzed": "Penilaian diperbarui dengan aturan deterministik proyek.",
+    "project.messageOverLimit": "Berkas melebihi batas 100 MB.",
+    "project.messageUploaded": "Berkas tersimpan. Pemrosesan latar belakang dimulai.",
+    "project.messageReviewReady": "catatan siap ditinjau.",
+    "project.messageImported": "catatan berhasil diimpor.",
+    "project.messageUploadFailed": "Unggahan tidak dapat diproses.",
+
+    // Manual record form
+    "record.eyebrowStrength": "CATATAN MANUAL / KUAT TEKAN",
+    "record.eyebrowSlump": "CATATAN MANUAL / SLUMP",
+    "record.formTitle": "Tambahkan data uji yang dapat ditelusuri.",
+    "record.sampleCode": "Kode sampel",
+    "record.testDate": "Tanggal uji",
+    "record.castingDate": "Tanggal cor",
+    "record.age": "Umur (hari)",
+    "record.compressive": "Kuat tekan (MPa)",
+    "record.designStrength": "Kuat tekan rencana (MPa)",
+    "record.actualSlump": "Slump aktual (mm)",
+    "record.targetSlump": "Slump rencana (mm)",
+    "record.notes": "Catatan",
+    "record.save": "Simpan catatan",
+
+    // Insights
+    "insights.eyebrow": "WAWASAN TEKNIK",
+    "insights.title": "Bandingkan bukti",
+    "insights.refresh": "Segarkan tampilan",
+    "insights.filterStatus.all": "Semua status",
+    "insights.filterAge": "Hari umur",
+    "insights.filterSupplier": "Pemasok",
+    "insights.filterLocation": "Elemen / lokasi",
+    "insights.total": "catatan dalam tampilan",
+    "insights.recommendation": "Verifikasi catatan yang ditandai terhadap dokumen sumber, tanggal, catatan curing, dan kriteria proyek yang berlaku.",
+    "insights.chartStrength": "Kuat tekan berdasarkan umur",
+    "insights.chartSupplier": "Perbandingan pemasok",
+    "insights.verificationTrend": "Tren verifikasi",
+    "insights.noAnomalies": "Tidak ada tanda anomali pada tampilan ini.",
+    "insights.undated": "Tanpa tanggal",
+
+    // Sharing
+    "share.eyebrow": "AKSES TERKENDALI",
+    "share.title": "Bagikan bukti proyek",
+    "share.subtitle": "Buat tautan yang tidak dapat ditebak. Pemilik dapat menonaktifkannya kapan saja.",
+    "share.permission": "Izin",
+    "share.viewer": "PENINJAU · hanya baca",
+    "share.editor": "EDITOR · dapat menambah bukti",
+    "share.optionalExpiry": "Kedaluwarsa opsional",
+    "share.create": "Buat tautan aman",
+    "share.linkReady": "tautan siap",
+    "share.expires": "Kedaluwarsa",
+    "share.noExpiry": "Tanpa kedaluwarsa",
+
+    // Import Review modal
+    "review.eyebrow": "TINJAUAN IMPOR",
+    "review.readyPrefix": "catatan siap disimpan.",
+    "review.subtitle": "Konfirmasi pemetaan kolom dan jenis uji. Kolom tidak terpetakan tetap disimpan sebagai metadata sumber.",
+    "review.table": "Tabel",
+    "review.rows": "baris · baris header sumber",
+    "review.testType": "Jenis uji",
+    "review.typeStrength": "Kuat tekan",
+    "review.typeSlump": "Slump",
+    "review.typeUnknown": "Belum ditentukan",
+    "review.column": "Kolom",
+    "review.manual": "manual",
+    "review.auto": "otomatis",
+    "review.unmapped": "Belum dipetakan · saran:",
+    "review.noMatch": "tidak ada kecocokan",
+    "review.mapTo": "Petakan ke…",
+    "review.showing": "Menampilkan 4 dari",
+    "review.rowsSuffix": "baris.",
+    "review.cancel": "Batalkan impor",
+    "review.save": "Simpan",
+    "review.saveSuffix": "catatan",
+    "review.mappedTo": "Kolom dipetakan ke",
+    "review.mappingCleared": "Pemetaan kolom dihapus.",
+    "review.mappingError": "Tidak dapat memperbarui pemetaan.",
+    "review.typeClassified": "Tabel diklasifikasikan sebagai",
+
+    // Shared view
+    "shared.eyebrow": "BUKTI KUALITAS DIBAGIKAN",
+    "shared.subtitleWithExpiry": "Bukti proyek hanya-baca dibagikan secara aman.",
+    "shared.expires": "Kedaluwarsa",
+    "shared.noExpiry": "Tanpa kedaluwarsa.",
+    "shared.loading": "Memuat bukti yang dibagikan…",
+    "shared.linkUnavailable": "Tautan tidak tersedia",
+
+    // About
+    "about.eyebrow": "TENTANG / KONTAK",
+    "about.title1": "Dibangun untuk",
+    "about.title2": "berbasis-bukti",
+    "about.title3": "kendali mutu.",
+    "about.lead": "Concrete Quality Assessment System adalah proyek akhir D4 Teknik Sipil untuk membuat peninjauan uji berbasis dokumen lebih konsisten, dapat dijelaskan, dan dapat ditelusuri.",
+    "about.disclaimerTitle": "Disclaimer teknis",
+    "about.disclaimer": "Sistem ini dikembangkan sebagai alat penilaian kualitas dan pendukung keputusan digital. Penilaian otomatis tidak menggantikan pengujian laboratorium, standar yang berlaku, spesifikasi proyek, atau pertimbangan profesional insinyur.",
+    "about.developedBy": "Dikembangkan oleh",
+    "about.program": "D4 Teknik Sipil",
+
+    // Status labels
+    "status.COMPLIANT": "Memenuhi",
+    "status.WARNING": "Peringatan",
+    "status.NON-COMPLIANT": "Tidak memenuhi",
+    "status.INSUFFICIENT DATA": "Data tidak lengkap",
+    "status.UNASSESSED": "Belum dinilai",
+
+    // Rule → alasan
+    "rule.slump.actual.required": "Nilai slump aktual tidak tersedia.",
+    "rule.slump.minimum": "Slump aktual di bawah batas penerimaan minimum yang dikonfigurasi.",
+    "rule.slump.maximum": "Slump aktual di atas batas penerimaan maksimum yang dikonfigurasi.",
+    "rule.slump.target.missing": "Slump rencana tidak tersedia; verifikasi terhadap kriteria proyek.",
+    "rule.slump.range": "Slump aktual berada di dalam kriteria penerimaan yang dikonfigurasi.",
+    "rule.strength.actual.required": "Nilai kuat tekan tidak tersedia.",
+    "rule.strength.planned.missing": "Kuat tekan rencana tidak tersedia; verifikasi terhadap kriteria proyek.",
+    "rule.strength.design.low": "Kuat tekan aktual di bawah nilai rencana dan memerlukan verifikasi.",
+    "rule.strength.design.ok": "Kuat tekan aktual memenuhi atau melebihi nilai rencana.",
+
+    // Warning / anomaly codes
+    "warn.date.test_before_casting": "Tanggal uji lebih awal daripada tanggal cor.",
+    "warn.age.inconsistent": "Umur hasil perhitungan sekitar {calculated} hari, sedangkan umur yang tertulis adalah {extracted} hari. Verifikasi tanggal uji, tanggal cor, atau nilai umur.",
+    "warn.strength.derived": "Kuat tekan diturunkan dari beban dan luas penampang (DIHITUNG DARI BEBAN DAN LUAS).",
+    "warn.anomaly.duplicate_sample": "Kode sampel ganda: {sample}",
+
+    // Recommendation codes
+    "recommendation.slump.low": "Rekomendasi verifikasi: catatan batching · durasi pengiriman · kondisi workability · prosedur pengujian · dokumentasi.",
+    "recommendation.slump.high": "Rekomendasi verifikasi: mix design · kadar air · dosis admixture · suhu pengiriman · prosedur pengujian.",
+    "recommendation.slump.target_missing": "Isi slump rencana proyek pada Pengaturan sebelum menuntaskan catatan ini.",
+    "recommendation.slump.actual_missing": "Tambahkan nilai slump yang terukur atau verifikasi dokumen sumber.",
+    "recommendation.slump.ok": "Simpan bukti dan lanjutkan pemantauan pengecoran berikutnya.",
+    "recommendation.strength.actual_missing": "Isi nilai kuat tekan dari laporan laboratorium.",
+    "recommendation.strength.planned_missing": "Tetapkan kuat tekan rencana proyek pada Pengaturan agar hasil dapat dinilai.",
+    "recommendation.strength.review": "Rekomendasi verifikasi: identitas sampel · tanggal cor · umur uji · catatan curing · catatan pengiriman · prosedur laboratorium · entri data.",
+  },
+};
+
+const LanguageContext = createContext({ lang: "en", setLang: () => {}, t: (key) => key });
+
+export function LanguageProvider({ children }) {
+  const [lang, setLang] = useState(() => localStorage.getItem(STORAGE_KEY) || "en");
+  useEffect(() => { localStorage.setItem(STORAGE_KEY, lang); document.documentElement.lang = lang; }, [lang]);
+  const t = (key, params) => {
+    const source = dictionaries[lang] || dictionaries.en;
+    let value = source[key];
+    if (value === undefined) value = dictionaries.en[key];
+    if (value === undefined) return key;
+    if (params) {
+      for (const [name, replacement] of Object.entries(params)) {
+        value = value.replaceAll(`{${name}}`, String(replacement));
+      }
+    }
+    return value;
+  };
+  return <LanguageContext.Provider value={{ lang, setLang, t }}>{children}</LanguageContext.Provider>;
+}
+
+export function useLanguage() {
+  return useContext(LanguageContext);
+}
+
+export function translateAssessment(t, assessment) {
+  if (!assessment) return { status: t("status.UNASSESSED"), reason: "", recommendation: "" };
+  const rule = assessment.rule;
+  let reasonKey = rule ? `rule.${rule}` : null;
+  if (rule === "strength.design") {
+    reasonKey = assessment.status === "COMPLIANT" ? "rule.strength.design.ok" : "rule.strength.design.low";
+  }
+  return {
+    status: t(`status.${assessment.status || "UNASSESSED"}`),
+    reason: reasonKey ? t(reasonKey) : assessment.reason || "",
+    recommendation: assessment.recommendation_code ? t(assessment.recommendation_code) : "",
+  };
+}
+
+export function translateWarning(t, warning) {
+  if (!warning) return "";
+  if (typeof warning === "string") return warning;
+  if (warning.code) return t(`warn.${warning.code}`, warning.params);
+  return warning.message || "";
+}

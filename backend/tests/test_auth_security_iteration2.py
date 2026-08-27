@@ -5,7 +5,9 @@ import uuid
 import requests
 
 
-BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+from dotenv import dotenv_values
+_env = dotenv_values("/app/frontend/.env")
+BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or _env["REACT_APP_BACKEND_URL"]).rstrip("/")
 FRONTEND_ORIGIN = os.environ.get("FRONTEND_ORIGIN", "https://slump-check.preview.emergentagent.com")
 
 

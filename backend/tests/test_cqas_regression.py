@@ -1,13 +1,16 @@
 """Regression coverage for CQAS authentication, project records, analysis, uploads, and reports."""
 import io
 import os
+import time
 import uuid
 
 import pandas as pd
 import pytest
 import requests
 
-BASE_URL = os.environ["REACT_APP_BACKEND_URL"].rstrip("/")
+from dotenv import dotenv_values
+_env = dotenv_values("/app/frontend/.env")
+BASE_URL = (os.environ.get("REACT_APP_BACKEND_URL") or _env["REACT_APP_BACKEND_URL"]).rstrip("/")
 
 
 @pytest.fixture(scope="module")
@@ -72,8 +75,16 @@ def test_indonesian_excel_upload_review_and_import(client, project):
     upload = client.post(f"{BASE_URL}/api/projects/{project['id']}/upload", files={"file": ("TEST_indonesian.xlsx", buffer.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")})
     assert upload.status_code == 200, upload.text
     data = upload.json()
-    assert data["extraction"]["detected"] == 1
-    record = data["extraction"]["records"][0]
+    # Extraction is now asynchronous (queued -> processing -> completed); poll the status endpoint.
+    status = {}
+    for _ in range(40):
+        status = client.get(f"{BASE_URL}/api/projects/{project['id']}/documents/{data['id']}/status").json()
+        if status.get("status") in {"completed", "failed"}:
+            break
+        time.sleep(0.5)
+    assert status.get("status") == "completed", status
+    assert status["extraction"]["detected"] == 1
+    record = status["extraction"]["records"][0]
     assert record["sample_code"] == "TEST-ID-001" and record["age_days"] == 28 and record["compressive_strength"] == 32
     finalized = client.post(f"{BASE_URL}/api/projects/{project['id']}/import/{data['id']}")
     assert finalized.status_code == 200 and finalized.json()["inserted"] == 1

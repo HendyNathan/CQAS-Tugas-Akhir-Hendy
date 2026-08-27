@@ -1,0 +1,48 @@
+{
+  "summary": "Iteration 4 backend-only testing of CQAS robust extraction stack. Created /app/backend/tests/test_iteration4_extraction.py (22 tests) covering dual auth (email/password + Google session endpoint), /api/config/field-synonyms, project creation/ownership, the PART 55 Indonesian 11-column Excel acceptance case, manual column mapping overrides (test_type + column->field), import with assigned_test_type, analyze persistence, VIEWER share + public /api/shared/{token}, upload validation (400 unsupported suffix, 401 unauth, 413 >100MB), and scanned-PDF OCR (pdf-ocr method). Also repaired 3 stale/non-idempotent tests in the older suites. Final full-suite run: 33 passed / 1 failed (the only failure is the pre-existing platform-ingress CORS wildcard, not an application bug).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/projects/{id}/upload (>100MB)", "issue": "Flaky response code under parallel load: returned 413 when run in isolation but 502 (ingress HTML error page) when run concurrently with other tests. Root cause: the handler raises 413 and closes the connection while the client is still streaming the 100MB body, so the ingress sometimes surfaces 502 instead. Consider validating Content-Length before reading the body so a clean 413 is always returned."},
+      {"endpoint": "startup seed_admin", "issue": "Playbook deviation: seed only inserts the admin when absent (`if not await db.users.find_one(...)`). If ADMIN_PASSWORD in backend/.env is changed, the existing admin's password_hash is never updated, so the documented credentials silently stop working. Seed should upsert/update the hash."},
+      {"endpoint": "POST /api/auth/google/session", "issue": "`db.sessions.insert_one` with a unique index on session_token will raise DuplicateKeyError -> 500 if the same Emergent session_id/session_token is exchanged twice (e.g. React double-invoke or user refresh). Use update_one(..., upsert=True) on session_token."},
+      {"endpoint": "extraction.map_header", "issue": "Fuzzy matcher false positives on short unrelated Indonesian headers: 'Truk' -> location (0.67), 'Nomor Polisi' -> record_number (0.92), 'Petugas' scored 0.57 (just under the 0.58 threshold). These silently consume a canonical field slot; consider raising the threshold for headers < 6 chars or requiring token-level matches."},
+      {"endpoint": "POST /api/projects/{id}/analyze", "issue": "Assessments are written back by zipping the DB record order with analyze() output order (server.py lines 298-301). Correct today, but any reordering/filtering inside analyze() would silently assign assessments to the wrong records. Match by record id instead."},
+      {"endpoint": "CORS (platform, informational)", "issue": "Public ingress returns `access-control-allow-origin: *` for any Origin, overriding the app. Verified the app itself is correct: localhost:8001 returns the explicit FRONTEND_ORIGIN with allow-credentials: true and rejects an untrusted origin preflight with 400. Pre-existing from iteration 2; not fixable in application code. test_auth_security_iteration2.py::test_cors_allows_configured_origin_with_credentials fails only because of this."}
+    ]
+  },
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/test_iteration4_extraction.py",
+    "/app/backend/tests/test_cqas_regression.py",
+    "/app/backend/tests/test_iteration3_features.py",
+    "/app/backend/tests/test_auth_security_iteration2.py",
+    "/app/test_reports/pytest/pytest_results_iteration4.xml"
+  ],
+  "action_items": [
+    "Make seed_admin idempotent-with-update so a changed ADMIN_PASSWORD re-hashes the existing admin user.",
+    "Use upsert on db.sessions in /api/auth/google/session to avoid a 500 on duplicate session_token exchange.",
+    "Validate Content-Length before reading the upload body so oversized uploads always return 413 (currently 502 under load).",
+    "Tighten map_header for very short headers to avoid false-positive field claims (Truk->location, Nomor Polisi->record_number).",
+    "Match analyze() output to records by id instead of relying on list ordering."
+  ],
+  "critical_code_review_comments": [
+    "server.py duplicates the whole extraction background worker twice (process_document and the inline _local closure inside upload) - DRY violation; parameterize a single worker with a loader callable.",
+    "GET /api/projects/{id}/documents/{doc_id}/status returns the full extraction payload including raw_rows and cells_by_index for every row; for large workbooks this will balloon polling responses. Return a lightweight status and expose the review payload via a separate endpoint.",
+    "records are fetched with .to_list(5000) in several endpoints (dashboard, analyze, insights, shared, report) with no pagination - silent truncation risk once a project exceeds 5000 records.",
+    "seed logic and demo data live inside the startup hook in server.py; extract to a seed module so it is testable and does not run on every worker boot."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration4_extraction.py",
+    "/app/backend/tests/test_cqas_regression.py",
+    "/app/backend/tests/test_iteration3_features.py",
+    "/app/backend/tests/test_auth_security_iteration2.py"
+  ],
+  "success_rate": {"backend": "97% (33/34; the single failure is the platform ingress CORS wildcard, app-level CORS verified correct)", "frontend": "not tested (backend-only request)"},
+  "seed_data_creation": "Created a temporary project code TEST-ITER4 with TEST_*.xlsx / TEST_scanned.pdf documents and imported records; all 11 TEST-ITER4 projects plus their records, documents and share links were deleted after the run. Older suites still append TEST-* records to the NBS-DEMO project (pre-existing behaviour).",
+  "should_call_test_agent_after_fix": false,
+  "should_main_agent_self_test": true,
+  "test_credentials": "admin@cqas.local / admin123 (verified working; bcrypt hash prefix $2b$12$, httpOnly access_token cookie set, lockout after 5 failures verified)",
+  "context_for_next_testing_agent": "All 16 requested acceptance items pass. PART 55 Indonesian 11-column Excel maps all 11 columns with zero unused_columns, test_type=strength, detected==row_count. Manual mapping override (test_type and column->supplier) works and persists (mapping_updated_at). Scanned-PDF OCR via PIL image PDF completes in ~2s and reports source.method=='pdf-ocr'. Emergent Object Storage is live: every uploaded document has storage_backend=='emergent' (local fallback path never exercised - untested). Google OAuth end-to-end intentionally not tested; only 400 (missing session id) and 401 (bogus session id) verified. Old suites now read REACT_APP_BACKEND_URL from /app/frontend/.env instead of requiring it in the shell env. Run slow tests (oversized upload, OCR) with -n 0 for stable results. Frontend was not tested this iteration - ProjectDetail Import Review manual-mapping UI still needs browser coverage.",
+  "rca_of_the_issue": "Three pre-existing suite failures were diagnosed as test-side, not product-side: (1) test_cqas_regression::test_indonesian_excel_upload_review_and_import asserted extraction in the synchronous upload response, but upload became asynchronous (queued->processing->completed) in iteration 3 - fixed by polling the status endpoint; (2) test_iteration3_features::test_insights_filters asserted total==1 with hardcoded supplier/location, so re-runs accumulated matching records - fixed with a per-run uuid tag; (3) all three old files crashed at import with KeyError REACT_APP_BACKEND_URL because they read only the shell env - fixed with a dotenv fallback to /app/frontend/.env. The remaining CORS failure is an ingress-layer header rewrite confirmed by comparing localhost:8001 (correct explicit origin + credentials) against the public URL (wildcard)."
+}

@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
-import { BrowserRouter, Navigate, Route, Routes, useNavigate, useParams, Link } from "react-router-dom";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line } from "recharts";
-import { Activity, AlertTriangle, ArrowRight, BarChart3, Beaker, CheckCircle2, ChevronRight, ClipboardList, FileText, FolderKanban, LogOut, Menu, Moon, Plus, ShieldCheck, Sun, UploadCloud, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams, Link } from "react-router-dom";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
+import { Activity, AlertTriangle, ArrowRight, BarChart3, Beaker, ChevronRight, ClipboardList, FileText, FolderKanban, Globe, LogOut, Menu, Moon, Plus, ShieldCheck, Sun, X } from "lucide-react";
 import axios from "axios";
 import "@/App.css";
+import ProjectDetailView, { SharedProject } from "@/ProjectDetail";
+import { LanguageProvider, useLanguage } from "@/i18n";
 
 const API = `${process.env.REACT_APP_BACKEND_URL}/api`;
 const api = axios.create({ baseURL: API, withCredentials: true });
-const fmt = (value, unit = "") => value === null || value === undefined || value === "" ? "—" : `${value} ${unit}`.trim();
 
-function Brand({ compact = false }) { return <Link to="/dashboard" className={`brand ${compact ? "brand-compact" : ""}`} data-testid="brand-home-link"><img src="/assets/logo.svg" alt="CQAS logo" data-testid="brand-logo" /><span>{compact ? "CQAS" : "Concrete Quality Assessment"}</span></Link>; }
+function Brand({ compact = false }) {
+  const { t } = useLanguage();
+  return <Link to="/dashboard" className={`brand ${compact ? "brand-compact" : ""}`} data-testid="brand-home-link"><img src="/assets/logo.svg" alt="CQAS logo" data-testid="brand-logo" /><span>{compact ? t("brand.short") : t("brand.long")}</span></Link>;
+}
 
 function useTheme() {
   const [dark, setDark] = useState(localStorage.getItem("cqas-theme") === "dark");
@@ -18,36 +22,267 @@ function useTheme() {
 }
 
 function AuthPage({ register = false, onAuth }) {
+  const { t } = useLanguage();
   const [form, setForm] = useState({ email: "admin@cqas.local", password: "admin123", name: "" });
-  const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const navigate = useNavigate();
-  const submit = async (event) => { event.preventDefault(); setBusy(true); setError(""); try { const response = await api.post(`/auth/${register ? "register" : "login"}`, form); onAuth(response.data); navigate("/dashboard"); } catch (err) { const detail = err.response?.data?.detail; setError(Array.isArray(detail) ? detail.map((item) => item.msg).join(" ") : detail || "Unable to complete sign in."); } finally { setBusy(false); } };
-  return <main className="auth-shell"><div className="auth-art"><Brand /><div className="art-copy"><span className="eyebrow">QUALITY CONTROL / 01</span><h1>Make every test result <em>traceable.</em></h1><p>One workspace for concrete slump and compressive-strength verification.</p></div><div className="art-foot">D4 CIVIL ENGINEERING · PROJECT CONTROL</div></div><section className="auth-panel"><div className="auth-panel-inner"><span className="eyebrow">{register ? "CREATE WORKSPACE ACCESS" : "SECURE PROJECT ACCESS"}</span><h2>{register ? "Create your account" : "Welcome back"}</h2><p className="muted">{register ? "Start assessing your concrete test records." : "Continue your concrete quality assessment."}</p><form onSubmit={submit} data-testid="auth-form">{register && <label>Name<input data-testid="auth-name-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Your name" /></label>}<label>Email<input data-testid="auth-email-input" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label><label>Password<input data-testid="auth-password-input" type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>{error && <div className="error-box" data-testid="auth-error-message">{error}</div>}<button className="button button-primary button-wide" disabled={busy} data-testid="auth-submit-button">{busy ? "Checking…" : register ? "Create account" : "Sign in"}<ArrowRight size={17} /></button></form><div className="auth-switch">{register ? "Already have an account?" : "New to CQAS?"} <Link to={register ? "/login" : "/register"} data-testid="auth-switch-link">{register ? "Sign in" : "Create account"}</Link></div><div className="auth-note"><ShieldCheck size={16} /> Email/password access is active. Google sign-in can be connected when its project credentials are supplied.</div></div></section></main>;
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const navigate = useNavigate();
+  const submit = async (event) => {
+    event.preventDefault(); setBusy(true); setError("");
+    try {
+      const response = await api.post(`/auth/${register ? "register" : "login"}`, form);
+      onAuth(response.data);
+      navigate("/dashboard");
+    } catch (err) {
+      const detail = err.response?.data?.detail;
+      setError(Array.isArray(detail) ? detail.map((item) => item.msg).join(" ") : detail || t("auth.genericError"));
+    } finally { setBusy(false); }
+  };
+  // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+  const google = () => {
+    const redirectUrl = window.location.origin + "/dashboard";
+    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  };
+  return (
+    <main className="auth-shell">
+      <LanguageBadge />
+      <div className="auth-art">
+        <Brand />
+        <div className="art-copy">
+          <span className="eyebrow">{t("auth.artEyebrow")}</span>
+          <h1>{t("auth.artTitle1")} <em>{t("auth.artTitle2")}</em></h1>
+          <p>{t("auth.artSub")}</p>
+        </div>
+        <div className="art-foot">{t("auth.artFoot")}</div>
+      </div>
+      <section className="auth-panel">
+        <div className="auth-panel-inner">
+          <span className="eyebrow">{register ? t("auth.eyebrowRegister") : t("auth.eyebrowLogin")}</span>
+          <h2>{register ? t("auth.create") : t("auth.welcome")}</h2>
+          <p className="muted">{register ? t("auth.subRegister") : t("auth.subLogin")}</p>
+          <form onSubmit={submit} data-testid="auth-form">
+            {register && <label>{t("auth.name")}<input data-testid="auth-name-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t("auth.namePlaceholder")} /></label>}
+            <label>{t("auth.email")}<input data-testid="auth-email-input" type="email" required value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></label>
+            <label>{t("auth.password")}<input data-testid="auth-password-input" type="password" required value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></label>
+            {error && <div className="error-box" data-testid="auth-error-message">{error}</div>}
+            <button className="button button-primary button-wide" disabled={busy} data-testid="auth-submit-button">{busy ? t("auth.checking") : register ? t("auth.linkRegister") : t("auth.signIn")} <ArrowRight size={17} /></button>
+          </form>
+          <div className="auth-divider"><span>{t("auth.or")}</span></div>
+          <button type="button" className="button button-outline button-wide" onClick={google} data-testid="google-signin-button"><svg width="17" height="17" viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.3 2 30 0 24 0 14.7 0 6.7 5.4 2.7 13.3l7.8 6C12.4 13.3 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.2-.4-4.7H24v9h12.7c-.5 3-2.2 5.5-4.7 7.2l7.3 5.7c4.3-3.9 6.7-9.7 6.7-17.2z"/><path fill="#FBBC05" d="M10.5 28.7c-.5-1.5-.8-3.1-.8-4.7s.3-3.2.8-4.7l-7.8-6C.9 16.6 0 20.2 0 24s.9 7.4 2.7 10.7l7.8-6z"/><path fill="#34A853" d="M24 48c6 0 11-2 14.7-5.3l-7.3-5.7c-2 1.4-4.6 2.2-7.4 2.2-6.3 0-11.6-3.8-13.5-9.5l-7.8 6C6.7 42.6 14.7 48 24 48z"/></svg> {t("auth.google")}</button>
+          <div className="auth-switch">{register ? t("auth.switchToLogin") : t("auth.switchToRegister")} <Link to={register ? "/login" : "/register"} data-testid="auth-switch-link">{register ? t("auth.linkLogin") : t("auth.linkRegister")}</Link></div>
+          <div className="auth-note"><ShieldCheck size={16} /> {t("auth.noteBoth")}</div>
+        </div>
+      </section>
+    </main>
+  );
+}
+
+function LanguageBadge() {
+  const { lang, setLang, t } = useLanguage();
+  return (
+    <button type="button" className="lang-badge" onClick={() => setLang(lang === "en" ? "id" : "en")} data-testid="language-badge" title={t("shell.language")}>
+      <Globe size={14} /> {lang === "en" ? "EN" : "ID"}
+    </button>
+  );
+}
+
+function LanguageToggle() {
+  const { lang, setLang } = useLanguage();
+  return (
+    <div className="lang-toggle" role="group" aria-label="Language">
+      <button type="button" className={lang === "en" ? "active" : ""} onClick={() => setLang("en")} data-testid="language-set-en">EN</button>
+      <button type="button" className={lang === "id" ? "active" : ""} onClick={() => setLang("id")} data-testid="language-set-id">ID</button>
+    </div>
+  );
+}
+
+function GoogleCallback({ onAuth }) {
+  const { t } = useLanguage();
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const params = new URLSearchParams(location.hash.replace(/^#/, ""));
+    const sessionId = params.get("session_id");
+    if (!sessionId) { navigate("/login"); return; }
+    window.history.replaceState({}, "", location.pathname);
+    api.post("/auth/google/session", null, { headers: { "X-Session-ID": sessionId } })
+      .then((response) => { onAuth(response.data); navigate("/dashboard"); })
+      .catch(() => setError(t("auth.googleError")));
+  }, [location, navigate, onAuth, t]);
+  return <main className="shared-shell"><h1>{error || t("auth.googleCompleting")}</h1></main>;
 }
 
 function Sidebar({ open, close, user, onLogout }) {
-  const navigate = useNavigate(); const [dark, toggleTheme] = useTheme();
-  const items = [["/dashboard", "Overview", Activity], ["/projects", "Projects", FolderKanban], ["/about", "About / Contact", ClipboardList]];
-  return <><div className={`sidebar-overlay ${open ? "show" : ""}`} onClick={close} /><aside className={`sidebar ${open ? "open" : ""}`}><div className="side-top"><Brand compact /><button className="icon-button mobile-only" onClick={close} data-testid="sidebar-close-button"><X size={19} /></button></div><nav>{items.map(([path, label, Icon]) => <Link key={path} to={path} onClick={close} className="nav-item" data-testid={`nav-${label.toLowerCase().replaceAll(" ", "-")}`}><Icon size={18} />{label}</Link>)}</nav><div className="side-bottom"><button className="theme-button" onClick={toggleTheme} data-testid="theme-toggle-button">{dark ? <Sun size={17} /> : <Moon size={17} />}{dark ? "Light mode" : "Dark mode"}</button><div className="user-chip"><span className="avatar">{(user?.name || "A").slice(0, 1).toUpperCase()}</span><div><strong data-testid="current-user-name">{user?.name}</strong><small>{user?.email}</small></div><button className="logout-button" onClick={async () => { await api.post("/auth/logout"); onLogout(); navigate("/login"); }} data-testid="logout-button"><LogOut size={16} /></button></div></div></aside></>;
+  const navigate = useNavigate();
+  const { t } = useLanguage();
+  const [dark, toggleTheme] = useTheme();
+  const items = [["/dashboard", t("nav.overview"), Activity], ["/projects", t("nav.projects"), FolderKanban], ["/about", t("nav.about"), ClipboardList]];
+  return (
+    <>
+      <div className={`sidebar-overlay ${open ? "show" : ""}`} onClick={close} />
+      <aside className={`sidebar ${open ? "open" : ""}`}>
+        <div className="side-top"><Brand compact /><button className="icon-button mobile-only" onClick={close} data-testid="sidebar-close-button"><X size={19} /></button></div>
+        <nav>{items.map(([path, label, Icon]) => <Link key={path} to={path} onClick={close} className="nav-item" data-testid={`nav-${path.replace("/", "")}`}><Icon size={18} />{label}</Link>)}</nav>
+        <div className="side-bottom">
+          <div className="side-controls">
+            <button className="theme-button" onClick={toggleTheme} data-testid="theme-toggle-button">{dark ? <Sun size={17} /> : <Moon size={17} />}{dark ? t("shell.themeLight") : t("shell.themeDark")}</button>
+            <LanguageToggle />
+          </div>
+          <div className="user-chip"><span className="avatar">{(user?.name || "A").slice(0, 1).toUpperCase()}</span><div><strong data-testid="current-user-name">{user?.name}</strong><small>{user?.email}</small></div><button className="logout-button" onClick={async () => { await api.post("/auth/logout"); onLogout(); navigate("/login"); }} data-testid="logout-button"><LogOut size={16} /></button></div>
+        </div>
+      </aside>
+    </>
+  );
 }
 
-function Shell({ user, onLogout, children }) { const [open, setOpen] = useState(false); return <div className="app-shell"><Sidebar open={open} close={() => setOpen(false)} user={user} onLogout={onLogout} /><div className="main-area"><header className="topbar"><button className="icon-button mobile-only" onClick={() => setOpen(true)} data-testid="mobile-menu-button"><Menu size={20} /></button><div className="breadcrumb">CQAS <ChevronRight size={14} /> <span>Quality workspace</span></div><div className="topbar-tag"><span className="status-dot" /> System ready</div></header>{children}</div></div>; }
+function Shell({ user, onLogout, children }) {
+  const { t } = useLanguage();
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="app-shell">
+      <Sidebar open={open} close={() => setOpen(false)} user={user} onLogout={onLogout} />
+      <div className="main-area">
+        <header className="topbar">
+          <button className="icon-button mobile-only" onClick={() => setOpen(true)} data-testid="mobile-menu-button"><Menu size={20} /></button>
+          <div className="breadcrumb">CQAS <ChevronRight size={14} /> <span>{t("shell.workspace")}</span></div>
+          <div className="topbar-tag"><span className="status-dot" /> {t("shell.systemReady")}</div>
+        </header>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function Dashboard() {
-  const [data, setData] = useState(null); const navigate = useNavigate();
-  useEffect(() => { api.get("/dashboard").then((res) => setData(res.data)); }, []);
-  const cards = data ? [["projects", "Projects tracked", FolderKanban, "01"], ["documents", "Source documents", FileText, "02"], ["slump", "Slump records", Beaker, "03"], ["strength", "Strength records", BarChart3, "04"]] : [];
-  const bars = data ? Object.entries(data.statuses).map(([name, value]) => ({ name: name.replace("NON-COMPLIANT", "NON-COMPLIANT"), value })) : [];
-  return <main className="page"><div className="page-heading"><div><span className="eyebrow">CONTROL CENTER / 01</span><h1>Good morning, <em>{data?.projects?.[0]?.name?.split(" ")[0] || "engineer"}.</em></h1><p className="muted">A clear view of your concrete quality evidence.</p></div><button className="button button-primary" onClick={() => navigate("/projects/new")} data-testid="new-project-button"><Plus size={18} /> New project</button></div><div className="stat-grid">{cards.map(([key, label, Icon, number]) => <div className="stat-card" key={key} data-testid={`dashboard-stat-${key}`}><div className="stat-index">{number}</div><Icon size={21} /><strong>{data?.counts[key] ?? "—"}</strong><span>{label}</span></div>)}</div><div className="dashboard-grid"><section className="panel chart-panel"><div className="panel-head"><div><span className="eyebrow">ASSESSMENT STATUS</span><h3>Results at a glance</h3></div><Link to="/projects" className="text-link" data-testid="dashboard-projects-link">View projects <ArrowRight size={15} /></Link></div><div className="chart-wrap">{data && <ResponsiveContainer width="100%" height="100%"><BarChart data={bars} layout="vertical" margin={{ left: 18, right: 20 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={110} tick={{ fill: "var(--muted)", fontSize: 11 }} /><Tooltip cursor={{ fill: "var(--wash)" }} /><Bar dataKey="value" fill="var(--orange)" radius={[0, 2, 2, 0]} barSize={24} /></BarChart></ResponsiveContainer>}</div></section><section className="panel activity-panel"><div className="panel-head"><div><span className="eyebrow">ACTIVE PROJECTS</span><h3>Recent work</h3></div></div>{(data?.projects || []).slice(0, 3).map((project) => <Link className="project-row" to={`/projects/${project.id}`} key={project.id} data-testid={`project-row-${project.id}`}><span className="project-mark">{project.name.slice(0, 1)}</span><span><strong>{project.name}</strong><small>{project.code || "No code"} · {project.location || "Location pending"}</small></span><ChevronRight size={17} /></Link>)}{!data?.projects?.length && <div className="empty-state">Your first project will appear here.</div>}</section></div><div className="notice"><AlertTriangle size={18} /><span><strong>Engineering note:</strong> Automated assessment supports review; it does not replace laboratory testing, applicable standards, or professional judgment.</span></div></main>;
+  const { t } = useLanguage();
+  const [data, setData] = useState(null);
+  const navigate = useNavigate();
+  useEffect(() => { api.get("/dashboard").then((res) => setData(res.data)).catch(() => setData({ counts: {}, statuses: {}, projects: [] })); }, []);
+  const cards = data ? [["projects", "dash.stat.projects", FolderKanban, "01"], ["documents", "dash.stat.documents", FileText, "02"], ["slump", "dash.stat.slump", Beaker, "03"], ["strength", "dash.stat.strength", BarChart3, "04"]] : [];
+  const bars = data ? Object.entries(data.statuses || {}).map(([name, value]) => ({ name: t(`status.${name}`), value })) : [];
+  return (
+    <main className="page">
+      <div className="page-heading">
+        <div><span className="eyebrow">{t("dash.eyebrow")}</span><h1>{t("dash.greeting")} <em>{data?.projects?.[0]?.name?.split(" ")[0] || "engineer"}.</em></h1><p className="muted">{t("dash.subtitle")}</p></div>
+        <button className="button button-primary" onClick={() => navigate("/projects/new")} data-testid="new-project-button"><Plus size={18} /> {t("dash.newProject")}</button>
+      </div>
+      <div className="stat-grid">{cards.map(([key, labelKey, Icon, number]) => <div className="stat-card" key={key} data-testid={`dashboard-stat-${key}`}><div className="stat-index">{number}</div><Icon size={21} /><strong>{data?.counts?.[key] ?? "—"}</strong><span>{t(labelKey)}</span></div>)}</div>
+      <div className="dashboard-grid">
+        <section className="panel chart-panel">
+          <div className="panel-head"><div><span className="eyebrow">{t("dash.status.eyebrow")}</span><h3>{t("dash.status.title")}</h3></div><Link to="/projects" className="text-link" data-testid="dashboard-projects-link">{t("dash.viewProjects")} <ArrowRight size={15} /></Link></div>
+          <div className="chart-wrap">{data && <ResponsiveContainer width="100%" height="100%"><BarChart data={bars} layout="vertical" margin={{ left: 18, right: 20 }}><XAxis type="number" hide /><YAxis type="category" dataKey="name" width={140} tick={{ fill: "var(--muted)", fontSize: 11 }} /><Tooltip cursor={{ fill: "var(--wash)" }} /><Bar dataKey="value" fill="var(--orange)" radius={[0, 2, 2, 0]} barSize={24} /></BarChart></ResponsiveContainer>}</div>
+        </section>
+        <section className="panel activity-panel">
+          <div className="panel-head"><div><span className="eyebrow">{t("dash.active.eyebrow")}</span><h3>{t("dash.active.title")}</h3></div></div>
+          {(data?.projects || []).slice(0, 3).map((project) => <Link className="project-row" to={`/projects/${project.id}`} key={project.id} data-testid={`project-row-${project.id}`}><span className="project-mark">{project.name.slice(0, 1)}</span><span><strong>{project.name}</strong><small>{project.code || t("projects.uncoded")} · {project.location || t("projects.locationPending")}</small></span><ChevronRight size={17} /></Link>)}
+          {!data?.projects?.length && <div className="empty-state">{t("dash.emptyProjects")}</div>}
+        </section>
+      </div>
+      <div className="notice"><AlertTriangle size={18} /><span><strong>{t("dash.engineeringNote")}</strong> {t("dash.disclaimer")}</span></div>
+    </main>
+  );
 }
 
-function Projects({ user }) { const [projects, setProjects] = useState([]); const [show, setShow] = useState(false); const [form, setForm] = useState({ name: "", code: "", location: "", description: "" }); const navigate = useNavigate(); useEffect(() => { api.get("/projects").then((res) => setProjects(res.data)); }, []); const create = async (e) => { e.preventDefault(); const res = await api.post("/projects", form); navigate(`/projects/${res.data.id}`); }; return <main className="page"><div className="page-heading"><div><span className="eyebrow">PROJECT REGISTER / 02</span><h1>Projects <em>under review.</em></h1><p className="muted">Your project evidence, organized and traceable.</p></div><button className="button button-primary" onClick={() => setShow(true)} data-testid="projects-new-button"><Plus size={18} /> New project</button></div><div className="project-list">{projects.map((project) => <button className="project-card" key={project.id} onClick={() => navigate(`/projects/${project.id}`)} data-testid={`project-card-${project.id}`}><div className="project-card-top"><span className="project-mark large">{project.name.slice(0, 1)}</span><span className="project-code">{project.code || "UNCODED"}</span></div><h3>{project.name}</h3><p>{project.description || "No description added yet."}</p><div className="project-meta"><span>{project.location || "Location pending"}</span><span>{project.members?.length || 1} member</span></div></button>)}{!projects.length && <div className="empty-state">No projects yet. Create one to begin.</div>}</div>{show && <div className="modal-backdrop"><form className="modal" onSubmit={create}><button type="button" className="modal-close" onClick={() => setShow(false)} data-testid="new-project-close-button"><X size={18} /></button><span className="eyebrow">NEW PROJECT</span><h2>Set the project frame.</h2><label>Project name<input required data-testid="project-name-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Navapark Business Suites" /></label><div className="form-row"><label>Project code<input data-testid="project-code-input" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="NBS-01" /></label><label>Location<input data-testid="project-location-input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder="Site location" /></label></div><label>Description<textarea data-testid="project-description-input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Purpose and scope" /></label><button className="button button-primary button-wide" data-testid="create-project-submit-button">Create project <ArrowRight size={17} /></button></form></div>}</main>; }
+function Projects({ user }) {
+  const { t } = useLanguage();
+  const [projects, setProjects] = useState([]);
+  const [show, setShow] = useState(false);
+  const [form, setForm] = useState({ name: "", code: "", location: "", description: "" });
+  const navigate = useNavigate();
+  useEffect(() => { api.get("/projects").then((res) => setProjects(res.data)); }, []);
+  const create = async (e) => { e.preventDefault(); const res = await api.post("/projects", form); navigate(`/projects/${res.data.id}`); };
+  return (
+    <main className="page">
+      <div className="page-heading">
+        <div><span className="eyebrow">{t("projects.eyebrow")}</span><h1>{t("projects.title1")} <em>{t("projects.title2")}</em></h1><p className="muted">{t("projects.subtitle")}</p></div>
+        <button className="button button-primary" onClick={() => setShow(true)} data-testid="projects-new-button"><Plus size={18} /> {t("projects.new")}</button>
+      </div>
+      <div className="project-list">
+        {projects.map((project) => (
+          <button className="project-card" key={project.id} onClick={() => navigate(`/projects/${project.id}`)} data-testid={`project-card-${project.id}`}>
+            <div className="project-card-top"><span className="project-mark large">{project.name.slice(0, 1)}</span><span className="project-code">{project.code || t("projects.uncoded")}</span></div>
+            <h3>{project.name}</h3>
+            <p>{project.description || t("projects.noDescription")}</p>
+            <div className="project-meta"><span>{project.location || t("projects.locationPending")}</span><span>{project.members?.length || 1} {t("projects.memberSingular")}</span></div>
+          </button>
+        ))}
+        {!projects.length && <div className="empty-state">{t("projects.empty")}</div>}
+      </div>
+      {show && (
+        <div className="modal-backdrop">
+          <form className="modal" onSubmit={create}>
+            <button type="button" className="modal-close" onClick={() => setShow(false)} data-testid="new-project-close-button"><X size={18} /></button>
+            <span className="eyebrow">{t("projects.new")}</span><h2>{t("projects.newTitle")}</h2>
+            <label>{t("projects.name")}<input required data-testid="project-name-input" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder={t("projects.namePlaceholder")} /></label>
+            <div className="form-row">
+              <label>{t("projects.code")}<input data-testid="project-code-input" value={form.code} onChange={(e) => setForm({ ...form, code: e.target.value })} placeholder="NBS-01" /></label>
+              <label>{t("projects.location")}<input data-testid="project-location-input" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} placeholder={t("projects.locationPlaceholder")} /></label>
+            </div>
+            <label>{t("projects.description")}<textarea data-testid="project-description-input" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder={t("projects.descriptionPlaceholder")} /></label>
+            <button className="button button-primary button-wide" data-testid="create-project-submit-button">{t("projects.create")} <ArrowRight size={17} /></button>
+          </form>
+        </div>
+      )}
+    </main>
+  );
+}
 
-function ProjectDetail() { const { id } = useParams(); const [project, setProject] = useState(null); const [type, setType] = useState("strength"); const [showForm, setShowForm] = useState(false); const [record, setRecord] = useState({ sample_code: "", test_date: "", casting_date: "", age_days: "", compressive_strength: "", planned_strength: "", actual_slump: "", target_slump: "", notes: "" }); const [upload, setUpload] = useState(null); const [review, setReview] = useState(null); const [message, setMessage] = useState(""); const load = async () => { const res = await api.get(`/projects/${id}`); setProject(res.data); }; useEffect(() => { load(); }, [id]); const save = async (e) => { e.preventDefault(); await api.post(`/projects/${id}/records`, { test_type: type, record: { ...record, age_days: record.age_days ? Number(record.age_days) : null, compressive_strength: record.compressive_strength ? Number(record.compressive_strength) : null, planned_strength: record.planned_strength ? Number(record.planned_strength) : null, actual_slump: record.actual_slump ? Number(record.actual_slump) : null, target_slump: record.target_slump ? Number(record.target_slump) : null } }); setShowForm(false); setMessage("Record saved for analysis."); load(); }; const processUpload = async (e) => { e.preventDefault(); if (!upload) return; const form = new FormData(); form.append("file", upload); try { const res = await api.post(`/projects/${id}/upload`, form, { headers: { "Content-Type": "multipart/form-data" } }); setReview(res.data); setMessage(`${res.data.detected} records detected. Review before saving.`); } catch (err) { setMessage(err.response?.data?.detail || "Upload could not be processed."); } }; const finalize = async () => { await api.post(`/projects/${id}/import/${review.id}`); setReview(null); load(); setMessage("Valid records imported."); }; const analyzeNow = async () => { await api.post(`/projects/${id}/analyze`); load(); setMessage("Assessment refreshed using deterministic project rules."); }; if (!project) return <main className="page"><div className="loading">Loading project…</div></main>; const strength = project.records?.filter((r) => r.test_type === "strength") || []; const slump = project.records?.filter((r) => r.test_type === "slump") || []; return <main className="page"><div className="project-hero"><div><Link className="back-link" to="/projects" data-testid="project-back-link">← Projects</Link><span className="eyebrow">PROJECT / {project.code || "UNCODED"}</span><h1>{project.name}</h1><p className="muted">{project.description || "Concrete quality assessment workspace"} · {project.location || "Location pending"}</p></div><div className="hero-actions"><button className="button button-outline" onClick={analyzeNow} data-testid="analyze-project-button"><Activity size={17} /> Re-run analysis</button><a className="button button-primary" href={`${API}/projects/${id}/report`} target="_blank" rel="noreferrer" data-testid="download-report-button"><FileText size={17} /> PDF report</a></div></div><div className="tab-strip"><a href="#records" data-testid="records-tab">Test records</a><a href="#upload" data-testid="upload-tab">Import documents</a><a href="#analysis" data-testid="analysis-tab">Analysis</a></div>{message && <div className="success-box" data-testid="project-message">{message}</div>}<div className="project-layout"><section id="records" className="panel"><div className="panel-head"><div><span className="eyebrow">TEST RECORDS / {project.records?.length || 0}</span><h3>Evidence log</h3></div><button className="button button-primary" onClick={() => setShowForm(true)} data-testid="add-record-button"><Plus size={17} /> Add record</button></div><div className="segmented"><button className={type === "strength" ? "active" : ""} onClick={() => setType("strength")} data-testid="strength-filter-button">Compressive strength ({strength.length})</button><button className={type === "slump" ? "active" : ""} onClick={() => setType("slump")} data-testid="slump-filter-button">Slump ({slump.length})</button></div><div className="table-scroll"><table><thead><tr><th>Sample</th><th>Test date</th><th>Age</th><th>Result</th><th>Status</th></tr></thead><tbody>{(type === "strength" ? strength : slump).map((item) => { const r = item.record; const result = type === "strength" ? fmt(r.compressive_strength || r.derived_strength, "MPa") : fmt(r.actual_slump, "mm"); return <tr key={item.id}><td><strong>{r.sample_code || r.record_number || "Unidentified"}</strong><small>{r.notes || "Source traceable"}</small></td><td>{r.test_date || "—"}</td><td>{type === "strength" ? fmt(r.age_days, "days") : "—"}</td><td className="mono">{result}</td><td><Status status={r.assessment?.status} /></td></tr>; })}</tbody></table>{!(type === "strength" ? strength : slump).length && <div className="table-empty">No {type === "strength" ? "compressive strength" : "slump"} records yet.</div>}</div></section><section id="upload" className="panel upload-panel"><div className="panel-head"><div><span className="eyebrow">DOCUMENT PIPELINE</span><h3>Import a report</h3></div><UploadCloud size={22} className="orange-icon" /></div><p className="muted">PDF, XLSX, XLS · up to 100 MB · Indonesian and English headers supported.</p><form onSubmit={processUpload} className="upload-form"><label className="dropzone"><UploadCloud size={28} /><strong>{upload ? upload.name : "Choose a lab report"}</strong><small>{upload ? `${(upload.size / 1024 / 1024).toFixed(1)} MB selected` : "Digital PDF and spreadsheet files"}</small><input type="file" accept=".pdf,.xlsx,.xls" onChange={(e) => setUpload(e.target.files?.[0])} data-testid="document-file-input" /></label><button className="button button-primary button-wide" disabled={!upload} data-testid="process-document-button">Process for review <ArrowRight size={17} /></button></form>{review && <div className="review-box" data-testid="import-review-panel"><div><strong>IMPORT REVIEW</strong><span>{review.detected} records detected</span></div><p>Used columns: {review.extraction?.sheets?.[0]?.used_columns?.length || review.extraction?.pages?.[0]?.used_columns?.length || "mapped"}. Original values and source locations are preserved.</p><button className="button button-primary" onClick={finalize} data-testid="save-import-button">Save valid records</button></div>}</section></div>{showForm && <RecordForm type={type} record={record} setRecord={setRecord} onClose={() => setShowForm(false)} onSave={save} />}</main>; }
+function About() {
+  const { t } = useLanguage();
+  return (
+    <main className="page about-page">
+      <span className="eyebrow">{t("about.eyebrow")}</span>
+      <h1>{t("about.title1")} <em>{t("about.title2")}</em> {t("about.title3")}</h1>
+      <p className="lead">{t("about.lead")}</p>
+      <div className="about-grid">
+        <div className="panel"><ShieldCheck size={24} className="orange-icon" /><h3>{t("about.disclaimerTitle")}</h3><p className="muted">{t("about.disclaimer")}</p></div>
+        <div className="panel"><h3>{t("about.developedBy")}</h3><p className="contact-name">Nathan</p><p className="muted">{t("about.program")}</p><a href="mailto:nathannnforsomeone@gmail.com" data-testid="contact-email-link">nathannnforsomeone@gmail.com</a><a href="https://www.instagram.com/hendy._nathan/" data-testid="contact-instagram-link">@hendy._nathan</a></div>
+      </div>
+    </main>
+  );
+}
 
-function Status({ status }) { const label = status || "UNASSESSED"; return <span className={`status status-${label.toLowerCase().replaceAll(" ", "-")}`} data-testid={`status-${label.toLowerCase().replaceAll(" ", "-")}`}>{label === "COMPLIANT" ? <CheckCircle2 size={13} /> : label === "WARNING" ? <AlertTriangle size={13} /> : label}</span>; }
-function RecordForm({ type, record, setRecord, onClose, onSave }) { const update = (key, value) => setRecord({ ...record, [key]: value }); return <div className="modal-backdrop"><form className="modal wide" onSubmit={onSave}><button type="button" className="modal-close" onClick={onClose} data-testid="record-form-close-button"><X size={18} /></button><span className="eyebrow">MANUAL RECORD / {type === "strength" ? "COMPRESSIVE STRENGTH" : "SLUMP"}</span><h2>Add traceable test data.</h2><div className="form-grid"><label>Sample code<input required data-testid="record-sample-input" value={record.sample_code} onChange={(e) => update("sample_code", e.target.value)} placeholder="C-001" /></label><label>Test date<input type="date" data-testid="record-test-date-input" value={record.test_date} onChange={(e) => update("test_date", e.target.value)} /></label>{type === "strength" ? <><label>Casting date<input type="date" value={record.casting_date} onChange={(e) => update("casting_date", e.target.value)} data-testid="record-casting-date-input" /></label><label>Age (days)<input type="number" value={record.age_days} onChange={(e) => update("age_days", e.target.value)} data-testid="record-age-input" /></label><label>Compressive strength (MPa)<input type="number" step="0.01" value={record.compressive_strength} onChange={(e) => update("compressive_strength", e.target.value)} data-testid="record-strength-input" /></label><label>Design strength (MPa)<input type="number" step="0.01" value={record.planned_strength} onChange={(e) => update("planned_strength", e.target.value)} data-testid="record-planned-input" /></label></> : <><label>Actual slump (mm)<input type="number" value={record.actual_slump} onChange={(e) => update("actual_slump", e.target.value)} data-testid="record-slump-input" /></label><label>Target slump (mm)<input type="number" value={record.target_slump} onChange={(e) => update("target_slump", e.target.value)} data-testid="record-target-slump-input" /></label></>}<label className="span-2">Notes<textarea value={record.notes} onChange={(e) => update("notes", e.target.value)} data-testid="record-notes-input" placeholder="Source note or verification detail" /></label></div><button className="button button-primary button-wide" data-testid="save-record-button">Save record <ArrowRight size={17} /></button></form></div>; }
+function AppRoutes({ user, setUser }) {
+  const location = useLocation();
+  if (location.hash?.includes("session_id=")) {
+    return <GoogleCallback onAuth={setUser} />;
+  }
+  return (
+    <Routes>
+      <Route path="/login" element={user ? <Navigate to="/dashboard" /> : <AuthPage onAuth={setUser} />} />
+      <Route path="/register" element={user ? <Navigate to="/dashboard" /> : <AuthPage register onAuth={setUser} />} />
+      <Route path="/share/:token" element={<SharedProject />} />
+      <Route path="*" element={user ? (
+        <Shell user={user} onLogout={() => setUser(null)}>
+          <Routes>
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/projects" element={<Projects user={user} />} />
+            <Route path="/projects/new" element={<Projects user={user} />} />
+            <Route path="/projects/:id" element={<ProjectDetailView />} />
+            <Route path="/about" element={<About />} />
+            <Route path="*" element={<Navigate to="/dashboard" />} />
+          </Routes>
+        </Shell>
+      ) : <Navigate to="/login" />} />
+    </Routes>
+  );
+}
 
-function About() { return <main className="page about-page"><span className="eyebrow">ABOUT / CONTACT</span><h1>Built for <em>evidence-led</em> quality control.</h1><p className="lead">Concrete Quality Assessment System is a D4 Civil Engineering project for making document-based test review more consistent, explainable, and traceable.</p><div className="about-grid"><div className="panel"><ShieldCheck size={24} className="orange-icon" /><h3>Engineering disclaimer</h3><p className="muted">This system is developed as a digital quality-control assessment and decision-support tool. Automated assessment does not replace laboratory testing, applicable standards, project specifications, or professional engineering judgment.</p></div><div className="panel"><h3>Developed by</h3><p className="contact-name">Nathan</p><p className="muted">D4 Civil Engineering</p><a href="mailto:nathannnforsomeone@gmail.com" data-testid="contact-email-link">nathannnforsomeone@gmail.com</a><a href="https://www.instagram.com/hendy._nathan/" data-testid="contact-instagram-link">@hendy._nathan</a></div></div></main>; }
+function AppInner() {
+  const { t } = useLanguage();
+  const [user, setUser] = useState(null);
+  const [checking, setChecking] = useState(true);
+  useEffect(() => {
+    if (window.location.hash?.includes("session_id=")) { setChecking(false); return; }
+    api.get("/auth/me").then((res) => setUser(res.data)).catch(() => setUser(null)).finally(() => setChecking(false));
+  }, []);
+  if (checking) return <div className="loading-screen">{t("loading")}</div>;
+  return <BrowserRouter><AppRoutes user={user} setUser={setUser} /></BrowserRouter>;
+}
 
-function App() { const [user, setUser] = useState(null); const [checking, setChecking] = useState(true); useEffect(() => { api.get("/auth/me").then((res) => setUser(res.data)).catch(() => setUser(null)).finally(() => setChecking(false)); }, []); if (checking) return <div className="loading-screen">Loading CQAS…</div>; return <BrowserRouter><Routes><Route path="/login" element={user ? <Navigate to="/dashboard" /> : <AuthPage onAuth={setUser} />} /><Route path="/register" element={user ? <Navigate to="/dashboard" /> : <AuthPage register onAuth={setUser} />} /><Route path="*" element={user ? <Shell user={user} onLogout={() => setUser(null)}><Routes><Route path="/dashboard" element={<Dashboard />} /><Route path="/projects" element={<Projects user={user} />} /><Route path="/projects/new" element={<Projects user={user} />} /><Route path="/projects/:id" element={<ProjectDetail />} /><Route path="/about" element={<About />} /><Route path="*" element={<Navigate to="/dashboard" />} /></Routes></Shell> : <Navigate to="/login" />} /></Routes></BrowserRouter>; }
+function App() {
+  return <LanguageProvider><AppInner /></LanguageProvider>;
+}
+
 export default App;

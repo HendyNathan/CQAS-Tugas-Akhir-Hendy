@@ -1,60 +1,49 @@
-# Concrete Quality Assessment System — Product Record
+# Concrete Quality Assessment System (CQAS) - PRD
 
-## Original problem statement
+## Original Problem Statement
+Build a full-stack "Concrete Quality Assessment System" for D4 Civil Engineering, capable of processing concrete Slump Test and Compressive Strength Test lab reports (PDF, XLSX, XLS) with robust Indonesian/English column mapping, OCR for scanned PDFs, deterministic assessment, anomaly detection, sharing, and PDF report generation.
 
-Build a complete full-stack Concrete Quality Assessment System for D4 Civil Engineering. It must support concrete slump and compressive-strength assessment, persistent projects and documents, Indonesian/English extraction, OCR-tolerant normalization, import review, unit-aware analysis, PDF reports, authentication, sharing, responsive UI, theme persistence, replaceable branding, and clearly labeled Navapark demo data.
+## Architecture
+- Frontend: React 19 + Tailwind/Shadcn + Recharts + react-router-dom
+- Backend: FastAPI + Motor (MongoDB) + pdfplumber + PyMuPDF + pytesseract + pdf2image + ReportLab
+- Storage: Emergent Object Storage (durable) with local disk fallback
+- Auth: JWT (email+password) + Emergent Google OAuth (dual login)
+- OCR: Tesseract (eng+ind) with word-box column reconstruction
 
-## Architecture decisions
+## User Personas
+- QA/QC Engineer: uploads lab reports, reviews mapping, generates reports
+- Project Owner: manages members, shares evidence
+- Consultant (Viewer): reads shared evidence
 
-- React 19 + React Router + Recharts provide the responsive workspace and charts.
-- FastAPI on port 8001 provides protected API routes and deterministic assessment services.
-- MongoDB uses application UUIDs for users, projects, records, and documents; raw extraction metadata is preserved inside records.
-- `extraction.py` owns bilingual/fuzzy header mapping, header-row detection, dates, numbers, units, and source traceability.
-- `analysis.py` owns transparent status rules, reasons, warnings, duplicate detection, and derived strength labeling.
-- Uploaded source files are retained in persistent server storage under `backend/uploads`; cloud object storage remains a P1 integration.
-- `/public/assets/logo.svg` is centralized and replaceable without changing component logic.
+## Implemented (Iteration 2 - 2026-02-27)
+- Dual login (email/password + Emergent Google OAuth) with httpOnly cookies
+- Emergent Object Storage integration (with local fallback)
+- Robust extraction engine:
+  - Excel + PDF text + scanned PDF (OCR word-box columns)
+  - Indonesian/English fuzzy header mapping (17 canonical fields)
+  - Multi-table detection with automatic Slump vs Strength classification
+  - Manual column mapping override with `apply_mapping_overrides`
+  - Test-type override per table
+  - Raw values preserved for traceability
+- Import Review UI with:
+  - Per-table test type selector
+  - Column mapping edit/remove
+  - Add mapping to unmapped columns
+  - Live preview of remapped records
+- PART 55 acceptance test passes end-to-end
+- Persisted assessment via `/analyze` writes back into records
+- Document history strip on project detail
 
-## Users and personas
+## PART 55 Acceptance Test
+Excel headers `No | Kode | Tanggal Cor | Tanggal Uji | Umur (hari) | Luas Penampang (cm²) | Berat (kg) | Beban (kN) | Kuat Tekan MPa (N/mm²) | Pola Retak | Keterangan` are mapped correctly and 100% detected.
 
-- Civil engineering student reviewing a final-project dataset.
-- Site/laboratory quality-control engineer importing mixed-language reports.
-- Project owner sharing verified results with an editor or viewer.
+## Backlog (P1/P2)
+- P2: App.js/ProjectDetail modularization into /pages and /components/features
+- P2: Saved mapping templates per user for recurring lab formats
+- P2: Dynamic user-uploaded logo replacement flow
+- P2: Configurable engineering limits UI inside Project Settings
+- P2: Report enhancements (charts, per-supplier tables)
+- P2: Multi-record extraction from mixed-domain single PDF (Slump + Strength side by side)
 
-## Core requirements and implementation status
-
-- Authentication, protected sessions, registration, logout, seeded owner: implemented.
-- Projects, manual slump/strength records, deterministic analysis: implemented.
-- Indonesian/English Excel extraction, fuzzy mapping, raw/source preservation, import review API: implemented.
-- Digital PDF table extraction and 100 MB validation: implemented.
-- Responsive dashboard, mobile navigation, light/dark theme, demo data: implemented.
-- PDF report endpoint, contact/about, engineering disclaimer: implemented.
-- Google sign-in: P1, not implemented because provider credentials/configuration were not supplied.
-- Cloud/object storage: P1, not implemented; persistent local storage is active.
-- Project sharing and full settings editor: P1.
-- Scanned-PDF OCR background processing: P1; current digital PDF extractor explicitly flags OCR verification.
-
-## Change log
-
-- 2026-08-27: Replaced starter app with CQAS full-stack foundation, extraction engine, analysis rules, report generation, auth, project UI, demo data, responsive theme, and test coverage.
-- 2026-08-27: Fixed UUID session lookup, current-user serialization, and ProjectDetail async-effect crash.
-- 2026-08-27: Added Mongo-backed five-failure/15-minute login lockout and explicit frontend CORS configuration.
-
-## Prioritized backlog
-
-### P0 remaining
-
-- Resolve public ingress CORS rewriting `Access-Control-Allow-Origin` to `*` while credentialed sessions are used.
-- Add provider-backed Google OAuth after project credentials and redirect configuration are supplied.
-
-### P1 remaining
-
-- Add cloud/object storage adapter and background processing queue for large/OCR uploads.
-- Add project sharing links with OWNER/EDITOR/VIEWER backend authorization.
-- Add editable criteria and unit preferences UI.
-- Add scanned PDF OCR and multi-page table consolidation.
-
-### P2 remaining
-
-- Expand chart filtering and supplier comparisons.
-- Add report charts, logo upload, and richer report traceability pages.
-- Add saved mapping templates and additional engineering standards references.
+## Test Credentials
+Email: `admin@cqas.local` / Password: `admin123` (Owner of demo project NBS-DEMO)
